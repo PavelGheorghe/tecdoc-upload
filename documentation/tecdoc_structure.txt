@@ -1,0 +1,1055 @@
+create schema if not exists tecdoc_gheorghe;
+
+create table if not exists tecdoc_gheorghe.t001
+(
+    dlnr        varchar(4) not null
+        constraint t001_pkey
+            primary key,
+    sa          varchar(3)  default NULL::character varying,
+    release     varchar(4)  default NULL::character varying,
+    datum       varchar(8)  default NULL::character varying,
+    kzvoll      varchar(1)  default NULL::character varying,
+    khernr      varchar(6)  default NULL::character varying,
+    marke       varchar(20) default NULL::character varying,
+    referenzdat varchar(4)  default NULL::character varying,
+    vorversion  varchar(4)  default NULL::character varying,
+    format      varchar(3)  default NULL::character varying,
+    lflag       varchar(1)  default NULL::character varying
+);
+
+create index if not exists t001_khernr_idx
+    on tecdoc_gheorghe.t001 (khernr);
+
+create index if not exists idxt001_marke
+    on tecdoc_gheorghe.t001 (marke);
+
+create table if not exists tecdoc_gheorghe.t010
+(
+    lkz        varchar(3) not null,
+    reserviert varchar(22) default NULL::character varying,
+    dlnr       varchar(4)  default NULL::character varying,
+    sa         varchar(3)  default NULL::character varying,
+    verkehr    varchar(1)  default NULL::character varying,
+    warnr      varchar(3)  default NULL::character varying,
+    wkz        varchar(3)  default NULL::character varying,
+    warbeznr   varchar(9)  default NULL::character varying,
+    vorwahl    varchar(5)  default NULL::character varying,
+    lstgruppe  varchar(1)  default NULL::character varying,
+    isocode2   varchar(2)  default NULL::character varying,
+    isocode3   varchar(3)  default NULL::character varying,
+    isocodenr  varchar(3)  default NULL::character varying,
+    lflag      varchar(1)  default NULL::character varying,
+    beznr      varchar(9) not null
+);
+
+create table if not exists tecdoc_gheorghe.t012
+(
+    lbeznr     varchar(9) not null,
+    lkz        varchar(3) not null,
+    sprachnr   varchar(3) not null,
+    reserviert varchar(22) default NULL::character varying,
+    dlnr       varchar(4)  default NULL::character varying,
+    sa         varchar(3)  default NULL::character varying,
+    bez        varchar(60) default NULL::character varying,
+    lflag      varchar(1)  default NULL::character varying,
+    constraint t012_pkey
+        primary key (lbeznr, lkz, sprachnr)
+);
+
+create index if not exists idxt012_sprachnr
+    on tecdoc_gheorghe.t012 (sprachnr);
+
+create index if not exists idxt012_bez
+    on tecdoc_gheorghe.t012 (bez);
+
+create table if not exists tecdoc_gheorghe.t014
+(
+    dokumentenart varchar(2) not null,
+    reserviert    varchar(22) default NULL::character varying,
+    dlnr          varchar(4)  default NULL::character varying,
+    sa            varchar(3)  default NULL::character varying,
+    beznr         varchar(9)  default NULL::character varying,
+    extension     varchar(3)  default NULL::character varying
+);
+
+create table if not exists tecdoc_gheorghe.t020
+(
+    sprachnr   varchar(3) not null
+        constraint t020_pkey
+            primary key,
+    reserviert varchar(22) default NULL::character varying,
+    dlnr       varchar(4)  default NULL::character varying,
+    sa         varchar(3)  default NULL::character varying,
+    isocode    varchar(2)  default NULL::character varying,
+    codepage   varchar(4)  default NULL::character varying,
+    beznr      varchar(9) not null
+);
+
+create index if not exists idxt020_isocode
+    on tecdoc_gheorghe.t020 (isocode);
+
+create index if not exists idxt020_beznr_idx
+    on tecdoc_gheorghe.t020 (beznr);
+
+create table if not exists tecdoc_gheorghe.t030
+(
+    beznr      varchar(9) not null,
+    sprachnr   varchar(3) not null,
+    reserviert varchar(22) default NULL::character varying,
+    dlnr       varchar(4)  default NULL::character varying,
+    sa         varchar(3)  default NULL::character varying,
+    bez        varchar(60) default NULL::character varying,
+    lflag      varchar(1)  default NULL::character varying,
+    constraint t030_pkey
+        primary key (beznr, sprachnr)
+);
+
+create index if not exists idxt030_sprachnr
+    on tecdoc_gheorghe.t030 (sprachnr);
+
+create index if not exists idxt030_dlnr
+    on tecdoc_gheorghe.t030 (dlnr);
+
+create index if not exists idxt030_beznr
+    on tecdoc_gheorghe.t030 (beznr);
+
+create index if not exists idxt030_bez
+    on tecdoc_gheorghe.t030 (bez);
+
+create table if not exists tecdoc_gheorghe.t040
+(
+    adressart varchar(3) not null,
+    dlnr      varchar(4) not null,
+    sa        varchar(3)  default NULL::character varying,
+    bez       varchar(40) default NULL::character varying,
+    bez2      varchar(40) default NULL::character varying,
+    strasse   varchar(40) default NULL::character varying,
+    strasse2  varchar(40) default NULL::character varying,
+    postfach  varchar(10) default NULL::character varying,
+    plzlkz    varchar(3)  default NULL::character varying,
+    plzort    varchar(8)  default NULL::character varying,
+    plzpf     varchar(8)  default NULL::character varying,
+    plzgr     varchar(8)  default NULL::character varying,
+    ort       varchar(40) default NULL::character varying,
+    ort2      varchar(40) default NULL::character varying,
+    telefon   varchar(20) default NULL::character varying,
+    fax       varchar(20) default NULL::character varying,
+    email     varchar(60) default NULL::character varying,
+    web       varchar(60) default NULL::character varying,
+    lflag     varchar(1)  default NULL::character varying,
+    constraint t040_pkey
+        primary key (adressart, dlnr)
+);
+
+create index if not exists idxt040_dlnr
+    on tecdoc_gheorghe.t040 (dlnr);
+
+create table if not exists tecdoc_gheorghe.t042
+(
+    dlnr          varchar(4) default NULL::character varying not null,
+    sa            varchar(3) default NULL::character varying,
+    lkz           varchar(3) default NULL::character varying not null,
+    bildnr        varchar(9)                                 not null,
+    dokumentenart varchar(2)                                 not null,
+    lflag         varchar(1) default NULL::character varying,
+    constraint t042_pkey
+        primary key (dlnr, lkz, bildnr, dokumentenart)
+);
+
+create table if not exists tecdoc_gheorghe.t050
+(
+    dlnr               varchar(4) not null,
+    kritnr             varchar(4) not null,
+    sa                 varchar(3) default NULL::character varying,
+    beznr              varchar(9) default NULL::character varying,
+    typ                varchar(1) default NULL::character varying,
+    maxlen             varchar(2) default NULL::character varying,
+    ok_artikel         varchar(1) default NULL::character varying,
+    tabnr              varchar(3) default NULL::character varying,
+    ok_nkw             varchar(1) default NULL::character varying,
+    ok_okw             varchar(1) default NULL::character varying,
+    ok_motor           varchar(1) default NULL::character varying,
+    ok_fahrerhaus      varchar(1) default NULL::character varying,
+    stucklisten        varchar(1) default NULL::character varying,
+    zuberhor           varchar(1) default NULL::character varying,
+    mehrfach           varchar(1) default NULL::character varying,
+    beznrabk           varchar(9) default NULL::character varying,
+    beznreinheint      varchar(9) default NULL::character varying,
+    intervalvcriterion varchar(1) default NULL::character varying,
+    nachfolhe          varchar(4) default NULL::character varying,
+    delete             varchar(1) default NULL::character varying,
+    ok_achse           varchar(1) default NULL::character varying,
+    lflag              varchar(1) default NULL::character varying,
+    constraint t050_pkey
+        primary key (dlnr, kritnr)
+);
+
+create index if not exists idxt050_typ
+    on tecdoc_gheorghe.t050 (typ);
+
+create index if not exists idxt050_kritnr
+    on tecdoc_gheorghe.t050 (kritnr);
+
+create index if not exists idxt050_beznr
+    on tecdoc_gheorghe.t050 (beznr);
+
+create table if not exists tecdoc_gheorghe.t051
+(
+    reserviert varchar(22) default NULL::character varying,
+    dlnr       varchar(4) not null,
+    sa         varchar(3)  default NULL::character varying,
+    tabnr      varchar(3) not null
+        constraint t051_pkey
+            primary key,
+    beznr      varchar(9)  default NULL::character varying,
+    tabtyp     varchar(1)  default NULL::character varying,
+    delete     varchar(1)  default NULL::character varying,
+    lflag      varchar(1)  default NULL::character varying
+);
+
+create index if not exists idxt051_tabnr
+    on tecdoc_gheorghe.t051 (tabnr);
+
+create table if not exists tecdoc_gheorghe.t052
+(
+    reserviert varchar(22) default NULL::character varying,
+    dlnr       varchar(4) not null,
+    sa         varchar(3)  default NULL::character varying,
+    tabnr      varchar(3) not null,
+    key        varchar(3) not null,
+    beznr      varchar(9)  default NULL::character varying,
+    sortnr     varchar(3)  default NULL::character varying,
+    delete     varchar(1)  default NULL::character varying,
+    lflag      varchar(1)  default NULL::character varying,
+    constraint t052_pkey
+        primary key (tabnr, key)
+);
+
+create index if not exists idxt052_key
+    on tecdoc_gheorghe.t052 (key);
+
+create table if not exists tecdoc_gheorghe.t100
+(
+    hernr       varchar(6) not null
+        constraint t100_pkey
+            primary key,
+    dlnr        varchar(4)  default NULL::character varying,
+    sa          varchar(3)  default NULL::character varying,
+    hkz         varchar(10) default NULL::character varying,
+    lbeznr      varchar(9)  default NULL::character varying,
+    pkw         varchar(1)  default NULL::character varying,
+    nkw         varchar(1)  default NULL::character varying,
+    vgl         varchar(1)  default NULL::character varying,
+    achse       varchar(1)  default NULL::character varying,
+    getriebe    varchar(1)  default NULL::character varying,
+    motor       varchar(1)  default NULL::character varying,
+    transporter varchar(1)  default NULL::character varying,
+    delete      varchar(1)  default NULL::character varying,
+    lflag       varchar(1)  default NULL::character varying
+);
+
+create index if not exists idxt100_lbeznr
+    on tecdoc_gheorghe.t100 (lbeznr);
+
+create index if not exists idxt100_hernr
+    on tecdoc_gheorghe.t100 (hernr);
+
+create table if not exists tecdoc_gheorghe.t110
+(
+    kmodnr      varchar(5) not null
+        constraint t110_pkey
+            primary key,
+    hernr       varchar(6) default NULL::character varying,
+    dlnr        varchar(4) default NULL::character varying,
+    sa          varchar(3) default NULL::character varying,
+    lbeznr      varchar(9) default NULL::character varying,
+    sortnr      varchar(3) default NULL::character varying,
+    bjvon       varchar(6) default NULL::character varying,
+    bjbis       varchar(6) default NULL::character varying,
+    pkw         varchar(1) default NULL::character varying,
+    nkw         varchar(1) default NULL::character varying,
+    achse       varchar(1) default NULL::character varying,
+    delete      varchar(1) default NULL::character varying,
+    transporter varchar(1) default NULL::character varying,
+    lflag       varchar(1) default NULL::character varying
+);
+
+create index if not exists idxt110_kmodnr
+    on tecdoc_gheorghe.t110 (kmodnr);
+
+create index if not exists idxt110_hernr
+    on tecdoc_gheorghe.t110 (hernr);
+
+create table if not exists tecdoc_gheorghe.t120
+(
+    ktypnr     integer not null
+        constraint t120_pkey
+            primary key,
+    kmodnr     varchar(5) default NULL::character varying,
+    dlnr       varchar(4) default NULL::character varying,
+    sa         varchar(3) default NULL::character varying,
+    lbeznr     varchar(9) default NULL::character varying,
+    sortnr     varchar(2) default NULL::character varying,
+    bjvon      varchar(6) default NULL::character varying,
+    bjbis      varchar(6) default NULL::character varying,
+    kw         varchar(4) default NULL::character varying,
+    ps         varchar(4) default NULL::character varying,
+    ccmsteuer  varchar(5) default NULL::character varying,
+    ccmtech    varchar(5) default NULL::character varying,
+    lit        varchar(4) default NULL::character varying,
+    zyl        varchar(2) default NULL::character varying,
+    tueren     varchar(1) default NULL::character varying,
+    tankinhalt varchar(4) default NULL::character varying,
+    spannung   varchar(2) default NULL::character varying,
+    abs        varchar(1) default NULL::character varying,
+    asr        varchar(1) default NULL::character varying,
+    motart     varchar(3) default NULL::character varying,
+    kraft      varchar(3) default NULL::character varying,
+    antrart    varchar(3) default NULL::character varying,
+    bremsart   varchar(3) default NULL::character varying,
+    bremssys   varchar(3) default NULL::character varying,
+    ventile    varchar(2) default NULL::character varying,
+    krstoffart varchar(3) default NULL::character varying,
+    katart     varchar(3) default NULL::character varying,
+    getrart    varchar(3) default NULL::character varying,
+    aufbauart  varchar(3) default NULL::character varying,
+    delete     varchar(1) default NULL::character varying,
+    lflag      varchar(1) default NULL::character varying
+);
+
+create index if not exists idxt120_ktypnr
+    on tecdoc_gheorghe.t120 (ktypnr);
+
+create index if not exists idxt120_kmodnr
+    on tecdoc_gheorghe.t120 (kmodnr);
+
+create table if not exists tecdoc_gheorghe.t122
+(
+    "Reserviert" varchar(22),
+    "DLNr"       varchar(4),
+    "SA"         varchar(3),
+    "KTypeNr"    numeric(9),
+    "LKZ"        varchar(3),
+    "Exclude"    varchar(1)
+);
+
+create index if not exists idxt122_ktypenr
+    on tecdoc_gheorghe.t122 ("KTypeNr", "LKZ");
+
+create table if not exists tecdoc_gheorghe.t124
+(
+    "Reserviert"  varchar(22),
+    "Dlnr"        varchar(4),
+    "SA"          varchar(3),
+    "KtypeNr"     numeric(9),
+    "Lkz"         varchar(3),
+    "Bjvon"       varchar(6),
+    "Bjbis"       varchar(6),
+    "ccmSteuer"   varchar(5),
+    "Lit"         varchar(4),
+    "Zyl"         varchar(2),
+    "Tueren"      varchar(1),
+    "Tanklnhalft" varchar(4),
+    "Spannung"    varchar(2),
+    "ABS"         varchar(1),
+    "ASR"         varchar(1),
+    "KrStoffArt"  varchar(3),
+    "KatArt"      varchar(3),
+    "GetrArt"     varchar(3),
+    "BremsArt"    varchar(3),
+    "BremSys"     varchar(3)
+);
+
+create table if not exists tecdoc_gheorghe.t125
+(
+    reserviert varchar(22),
+    dlnr       numeric(4),
+    sa         varchar(3),
+    ktypnr     numeric(9),
+    lfdnr      numeric(3),
+    motnr      varchar(5),
+    bjvon      numeric(6),
+    bjbis      numeric(6),
+    lkz        varchar(3),
+    exclude numeric (1)
+);
+
+create index if not exists idxt125_ktypnr
+    on tecdoc_gheorghe.t125 (ktypnr, motnr);
+
+create table if not exists tecdoc_gheorghe.t155
+(
+    dlnr         varchar(4) not null,
+    sa           varchar(3) not null,
+    hernr        varchar(6)  default NULL::character varying,
+    motnr        varchar(5) not null
+        constraint t155_pkey
+            primary key,
+    mcode        varchar(60) default NULL::character varying,
+    bjvon        varchar(6)  default NULL::character varying,
+    bjbis        varchar(6)  default NULL::character varying,
+    kwvon        varchar(4)  default NULL::character varying,
+    kwbis        varchar(4)  default NULL::character varying,
+    psvon        varchar(4)  default NULL::character varying,
+    psbis        varchar(4)  default NULL::character varying,
+    ventile      varchar(2)  default NULL::character varying,
+    zyl          varchar(2)  default NULL::character varying,
+    verdichtv    varchar(4)  default NULL::character varying,
+    verdichtb    varchar(5)  default NULL::character varying,
+    drehmv       varchar(4)  default NULL::character varying,
+    drehmb       varchar(5)  default NULL::character varying,
+    ccmsteuerv   varchar(5)  default NULL::character varying,
+    ccmsteuerb   varchar(5)  default NULL::character varying,
+    ccmtechv     varchar(5)  default NULL::character varying,
+    ccmtechb     varchar(5)  default NULL::character varying,
+    litsteuerv   varchar(4)  default NULL::character varying,
+    litsteuerb   varchar(4)  default NULL::character varying,
+    littechv     varchar(4)  default NULL::character varying,
+    littechb     varchar(4)  default NULL::character varying,
+    motverw      varchar(3)  default NULL::character varying,
+    motbauform   varchar(3)  default NULL::character varying,
+    krstoffart   varchar(3)  default NULL::character varying,
+    krstoffauf   varchar(3)  default NULL::character varying,
+    motbeatm     varchar(3)  default NULL::character varying,
+    uminkwv      varchar(5)  default NULL::character varying,
+    uminkwb      varchar(5)  default NULL::character varying,
+    umindrehmv   varchar(5)  default NULL::character varying,
+    umindrehmb   varchar(5)  default NULL::character varying,
+    kurbel       varchar(2)  default NULL::character varying,
+    bohrung      varchar(6)  default NULL::character varying,
+    hub          varchar(6)  default NULL::character varying,
+    motorart     varchar(3)  default NULL::character varying,
+    abgasnorm    varchar(3)  default NULL::character varying,
+    zylbauform   varchar(3)  default NULL::character varying,
+    motsteuer    varchar(3)  default NULL::character varying,
+    ventilsteuer varchar(3)  default NULL::character varying,
+    kuehlart     varchar(3)  default NULL::character varying,
+    vkbez        varchar(30) default NULL::character varying,
+    exclude varchar (1),
+    delete       varchar(1)  default NULL::character varying,
+    losch_flag   varchar(1)  default NULL::character varying
+);
+
+create index if not exists idxt155_hernr
+    on tecdoc_gheorghe.t155 (hernr, motnr);
+
+create table if not exists tecdoc_gheorghe.t156
+(
+    dlnr       varchar(4)                                 not null,
+    sa         varchar(3)                                 not null,
+    motnr      varchar(5)                                 not null,
+    lkz        varchar(3) default NULL::character varying not null,
+    losch_flag varchar(1) default NULL::character varying,
+    constraint t156_pkey
+        primary key (motnr, lkz)
+);
+
+create index if not exists idxt156_motnr
+    on tecdoc_gheorghe.t156 (motnr);
+
+create table if not exists tecdoc_gheorghe.t200
+(
+    artnr             varchar(22) not null,
+    dlnr              varchar(4)  not null,
+    artnr_raw         varchar(22) default NULL::character varying,
+    sa                varchar(3)  default NULL::character varying,
+    beznr             varchar(9)  default NULL::character varying,
+    kzsb              varchar(1)  default NULL::character varying,
+    kzmat             varchar(1)  default NULL::character varying,
+    kzat              varchar(1)  default NULL::character varying,
+    kzzub             varchar(1)  default NULL::character varying,
+    losgr1            varchar(5)  default NULL::character varying,
+    losgr2            varchar(5)  default NULL::character varying,
+    lflag             varchar(1)  default NULL::character varying,
+    artnr_raw_vectors tsvector
+)
+    with (autovacuum_enabled = false);
+
+create index if not exists idxt200_dlnr
+    on tecdoc_gheorghe.t200 (dlnr);
+
+create index if not exists idxt200_artnrraw
+    on tecdoc_gheorghe.t200 (artnr_raw);
+
+create index if not exists idxt200_artnr_raw_vectors
+    on tecdoc_gheorghe.t200 (artnr_raw_vectors);
+
+create index if not exists idxt200_artnr
+    on tecdoc_gheorghe.t200 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t202
+(
+    artnr      varchar(22) default NULL::character varying not null,
+    dlnr       varchar(4)                                  not null,
+    sa         varchar(3)                                  not null,
+    lkz        varchar(3)  default NULL::character varying not null,
+    exclude varchar (1),
+    losch_flag varchar(1)  default NULL::character varying,
+    constraint t202next_pkey
+        primary key (dlnr, artnr, lkz)
+);
+
+create index if not exists idxt202_lkz1702
+    on tecdoc_gheorghe.t202 (lkz);
+
+create index if not exists idxt202_lkz
+    on tecdoc_gheorghe.t202 (lkz);
+
+create index if not exists idxt202_dlnr1702
+    on tecdoc_gheorghe.t202 (dlnr);
+
+create index if not exists idxt202_dlnr
+    on tecdoc_gheorghe.t202 (dlnr);
+
+create index if not exists idxt202_artnr1702
+    on tecdoc_gheorghe.t202 (dlnr, artnr);
+
+create index if not exists idxt202_artnr
+    on tecdoc_gheorghe.t202 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t203
+(
+    artnr_dlnr_khernr_refnr_sort varchar(60) not null
+        constraint t203_pkey
+            primary key,
+    khernr                       varchar(6)  default NULL::character varying,
+    artnr                        varchar(22) default NULL::character varying,
+    dlnr                         varchar(4)  default NULL::character varying,
+    lkz                          varchar(3)  default NULL::character varying,
+    sa                           varchar(3)  default NULL::character varying,
+    refnr_raw                    varchar(22) default NULL::character varying,
+    exclude varchar (1) default NULL::character varying,
+    additiv                      varchar(1)  default NULL::character varying,
+    referenzinfo                 varchar(3)  default NULL::character varying,
+    lflag                        varchar(1)  default NULL::character varying,
+    sort                         varchar(5)  not null,
+    refnr                        varchar(22) default NULL::character varying,
+    short_name_vectors           tsvector
+)
+    with (autovacuum_enabled = false);
+
+create index if not exists idxt203_sortnr
+    on tecdoc_gheorghe.t203 (sort);
+
+create index if not exists idxt203_short_name_vectors
+    on tecdoc_gheorghe.t203 (short_name_vectors);
+
+create index if not exists idxt203_refnrraw
+    on tecdoc_gheorghe.t203 (refnr_raw);
+
+create index if not exists idxt203_refnr
+    on tecdoc_gheorghe.t203 (refnr);
+
+create index if not exists idxt203_lkz
+    on tecdoc_gheorghe.t203 (lkz);
+
+create index if not exists idxt203_khernr
+    on tecdoc_gheorghe.t203 (khernr);
+
+create index if not exists idxt203_dlnr
+    on tecdoc_gheorghe.t203 (dlnr);
+
+create index if not exists idxt203_artnr
+    on tecdoc_gheorghe.t203 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t204
+(
+    ersatznr_artnr_dlnr varchar(48) not null
+        constraint t204_pkey
+            primary key,
+    artnr               varchar(22) default NULL::character varying,
+    dlnr                varchar(4)  default NULL::character varying,
+    lkz                 varchar(3)  default NULL::character varying,
+    sa                  varchar(3)  default NULL::character varying,
+    ersatznr_raw        varchar(22) default NULL::character varying,
+    exclude varchar (1) default NULL::character varying,
+    sort                varchar(5)  default NULL::character varying,
+    lflag               varchar(5)  default NULL::character varying,
+    ersatznr            varchar(22) not null
+);
+
+create index if not exists idxt204_lkz
+    on tecdoc_gheorghe.t204 (lkz);
+
+create index if not exists idxt204_ersatznr
+    on tecdoc_gheorghe.t204 (ersatznr);
+
+create index if not exists idxt204_dlnr
+    on tecdoc_gheorghe.t204 (dlnr);
+
+create index if not exists idxt204_artnr
+    on tecdoc_gheorghe.t204 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t205
+(
+    artnr        varchar(22) default NULL::character varying not null,
+    dlnr         varchar(4)  default NULL::character varying not null,
+    sa           varchar(3)  default NULL::character varying,
+    partgenartnr varchar(5)  default NULL::character varying not null,
+    lfdnr        varchar(9)  default NULL::character varying not null,
+    partnr       varchar(22) default NULL::character varying not null,
+    menge        integer,
+    lflag        varchar(1)  default NULL::character varying,
+    constraint t205_pkey
+        primary key (artnr, dlnr, partgenartnr, lfdnr, partnr)
+);
+
+create index if not exists idxt205_dlnr1702
+    on tecdoc_gheorghe.t205 (dlnr);
+
+create index if not exists idxt205_dlnr
+    on tecdoc_gheorghe.t205 (dlnr);
+
+create index if not exists idxt205_artnr1702
+    on tecdoc_gheorghe.t205 (dlnr, artnr);
+
+create index if not exists idxt205_artnr
+    on tecdoc_gheorghe.t205 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t206
+(
+    artnr      varchar(22) default NULL::character varying not null,
+    dlnr       varchar(4)                                  not null,
+    sa         varchar(3)                                  not null,
+    reserviert varchar(5)  default NULL::character varying,
+    lkz        varchar(3)  default NULL::character varying,
+    sortnr     varchar(2)  default NULL::character varying not null,
+    infart     varchar(3)  default NULL::character varying,
+    anzsofort  varchar(1),
+    tbsnr      varchar(6)  default NULL::character varying,
+    exclude varchar (1),
+    losch_flag varchar(1)  default NULL::character varying,
+    constraint t206_pkey
+        primary key (dlnr, artnr, sortnr)
+);
+
+create index if not exists idxt206_dlnr
+    on tecdoc_gheorghe.t206 (dlnr);
+
+create index if not exists idxt206_artnr
+    on tecdoc_gheorghe.t206 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t207
+(
+    artnr         varchar(22) not null,
+    dlnr          varchar(4)  not null,
+    sa            varchar(3),
+    lkz           varchar(3)  not null,
+    gebrnr        varchar(35) not null,
+    exclude varchar (1),
+    anzsofort     varchar(1),
+    sort          varchar(5)  not null,
+    lflag         varchar(1),
+    gebrnr_vector tsvector
+);
+
+create index if not exists idxt207_ftext
+    on tecdoc_gheorghe.t207 (gebrnr_vector);
+
+create index if not exists idxt207_dlnr
+    on tecdoc_gheorghe.t207 (dlnr);
+
+create index if not exists idxt207_artnr
+    on tecdoc_gheorghe.t207 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t209
+(
+    artnr_dlnr_lkz_eannr varchar(42) not null
+        constraint t209_pkey
+            primary key,
+    artnr                varchar(22) default NULL::character varying,
+    dlnr                 varchar(4)  default NULL::character varying,
+    lkz                  varchar(3)  default NULL::character varying,
+    sa                   varchar(3)  default NULL::character varying,
+    exclude varchar (1) default NULL::character varying,
+    lflag                varchar(1)  default NULL::character varying,
+    eannr                varchar(13) not null
+);
+
+create index if not exists t209_artnr_idx
+    on tecdoc_gheorghe.t209 (artnr);
+
+create index if not exists idxt209_lkz
+    on tecdoc_gheorghe.t209 (lkz);
+
+create index if not exists idxt209_eanr
+    on tecdoc_gheorghe.t209 (eannr);
+
+create index if not exists idxt209_dlnr
+    on tecdoc_gheorghe.t209 (dlnr);
+
+create index if not exists idxt209_artnr_eannr
+    on tecdoc_gheorghe.t209 (dlnr, eannr, artnr);
+
+create index if not exists idxt209_artnr_dlnr
+    on tecdoc_gheorghe.t209 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t210
+(
+    artnr_dlnr_sortnr varchar(29) not null
+        constraint t210_pkey
+            primary key,
+    artnr             varchar(22) default NULL::character varying,
+    dlnr              varchar(4)  default NULL::character varying,
+    lkz               varchar(3)  default NULL::character varying,
+    sa                varchar(3)  default NULL::character varying,
+    reserviert        varchar(5)  default NULL::character varying,
+    kritnr            varchar(4)  default NULL::character varying,
+    kritwert          varchar(20) default NULL::character varying,
+    anzsofort         varchar(1)  default NULL::character varying,
+    exclude varchar (1) default NULL::character varying,
+    lflag             varchar(1)  default NULL::character varying,
+    sortnr            varchar(3)  not null
+);
+
+create index if not exists idxt210_sortnr
+    on tecdoc_gheorghe.t210 (sortnr);
+
+create index if not exists idxt210_lkz
+    on tecdoc_gheorghe.t210 (lkz);
+
+create index if not exists idxt210_dlnr
+    on tecdoc_gheorghe.t210 (dlnr);
+
+create index if not exists idxt210_artnr
+    on tecdoc_gheorghe.t210 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t211
+(
+    artnr_dlnr_genartnr varchar(31) not null
+        constraint t211_pkey
+            primary key,
+    artnr               varchar(22) default NULL::character varying,
+    dlnr                varchar(4)  default NULL::character varying,
+    genartnr            varchar(5)  default NULL::character varying,
+    sa                  varchar(3)  default NULL::character varying,
+    lflag               varchar(1)  default NULL::character varying
+);
+
+create index if not exists idxt211_genartnr
+    on tecdoc_gheorghe.t211 (genartnr);
+
+create index if not exists idxt211_dlnr
+    on tecdoc_gheorghe.t211 (dlnr);
+
+create index if not exists idxt211_artnr
+    on tecdoc_gheorghe.t211 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t212
+(
+    artnr       varchar(22) default NULL::character varying,
+    dlnr        varchar(4)  default NULL::character varying,
+    sa          varchar(3)  default NULL::character varying,
+    lkz         varchar(3)  default NULL::character varying,
+    vpe         varchar(5)  default NULL::character varying,
+    mengeprovpe varchar(5),
+    artstat     varchar(3)  default NULL::character varying,
+    statusdat   varchar(8)  default NULL::character varying,
+    lflag       varchar(1)  default NULL::character varying
+);
+
+create index if not exists idxt212_dlnrartnr
+    on tecdoc_gheorghe.t212 (dlnr, artnr);
+
+create index if not exists idxt212_dlnr
+    on tecdoc_gheorghe.t212 (dlnr);
+
+create index if not exists idxt212_artnr
+    on tecdoc_gheorghe.t212 (artnr);
+
+create table if not exists tecdoc_gheorghe.t215
+(
+    artnr      varchar(22) default NULL::character varying not null,
+    dlnr       varchar(4)                                  not null,
+    sa         varchar(3)                                  not null,
+    lfdnr      varchar(3)  default NULL::character varying not null,
+    lkz        varchar(3)  default NULL::character varying not null,
+    exclude varchar (1),
+    losch_flag varchar(1)  default NULL::character varying,
+    constraint t215_pkey
+        primary key (dlnr, artnr, lfdnr, lkz)
+);
+
+create index if not exists idxt215_dlnr
+    on tecdoc_gheorghe.t215 (dlnr);
+
+create index if not exists idxt215_artnr
+    on tecdoc_gheorghe.t215 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t231
+(
+    bildnr        varchar(9) not null,
+    dokumentenart varchar(2) not null,
+    sprachnr      varchar(3) not null,
+    dlnr          varchar(4)   default NULL::character varying,
+    reserviert    varchar(22)  default NULL::character varying,
+    sa            varchar(3)   default NULL::character varying,
+    bildname      varchar(30)  default NULL::character varying,
+    bildtype      varchar(3)   default NULL::character varying,
+    beznorm       varchar(3)   default NULL::character varying,
+    breit         varchar(4)   default NULL::character varying,
+    hoch          varchar(4)   default NULL::character varying,
+    farben        varchar(3)   default NULL::character varying,
+    beznr         varchar(9)   default NULL::character varying,
+    lflag         varchar(1)   default NULL::character varying,
+    url           varchar(255) default NULL::character varying
+);
+
+create index if not exists idxt231_sprachnr
+    on tecdoc_gheorghe.t231 (sprachnr);
+
+create index if not exists idxt231_dokument
+    on tecdoc_gheorghe.t231 (dokumentenart);
+
+create index if not exists idxt231_dlnr
+    on tecdoc_gheorghe.t231 (dlnr);
+
+create index if not exists idxt231_bildnr
+    on tecdoc_gheorghe.t231 (bildnr);
+
+create table if not exists tecdoc_gheorghe.t232
+(
+    artnr_dlnr_sortnr varchar(29) not null,
+    artnr             varchar(22) default NULL::character varying,
+    dlnr              varchar(4)  default NULL::character varying,
+    lkz               varchar(3)  default NULL::character varying,
+    sa                varchar(3)  default NULL::character varying,
+    exclude varchar (1) default NULL::character varying,
+    bildnr            varchar(9)  default NULL::character varying,
+    dokumentenart     varchar(2)  not null,
+    lflag             varchar(1)  default NULL::character varying,
+    sortnr            varchar(2)  not null
+);
+
+create index if not exists idxt232_sortnr
+    on tecdoc_gheorghe.t232 (sortnr);
+
+create index if not exists idxt232_lkz
+    on tecdoc_gheorghe.t232 (lkz);
+
+create index if not exists idxt232_dlnr
+    on tecdoc_gheorghe.t232 (dlnr);
+
+create index if not exists idxt232_artnr
+    on tecdoc_gheorghe.t232 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t320
+(
+    genartnr     varchar(5) not null
+        constraint t320_pkey
+            primary key,
+    nartnr       varchar(5) default NULL::character varying,
+    bgnr         varchar(4) default NULL::character varying,
+    dlnr         varchar(4) default NULL::character varying,
+    sa           varchar(3) not null,
+    verwnr       varchar(4) default NULL::character varying,
+    beznr        varchar(9) default NULL::character varying,
+    ok_pkw       varchar(1) default NULL::character varying,
+    ok_nkw       varchar(1) default NULL::character varying,
+    ok_motor     varchar(1) default NULL::character varying,
+    ok_universal varchar(1) default NULL::character varying,
+    ok_fzgunab   varchar(1) default NULL::character varying,
+    delete       varchar(1) default NULL::character varying,
+    ok_achse     varchar(1) default NULL::character varying,
+    lflag        varchar(1) default NULL::character varying
+);
+
+create index if not exists idx320_genartnr
+    on tecdoc_gheorghe.t320 (genartnr);
+
+create index if not exists idx320_bgnr
+    on tecdoc_gheorghe.t320 (bgnr);
+
+create index if not exists idx320_beznr
+    on tecdoc_gheorghe.t320 (beznr);
+
+create table if not exists tecdoc_gheorghe.t323
+(
+    nartnr     varchar(5) not null
+        constraint t323_pkey
+            primary key,
+    reserviert varchar(22) default NULL::character varying,
+    dlnr       varchar(4)  default NULL::character varying,
+    sa         varchar(3)  default NULL::character varying,
+    beznr      varchar(9)  default NULL::character varying,
+    lflag      varchar(1)  default NULL::character varying
+);
+
+create table if not exists tecdoc_gheorghe.t324
+(
+    bgnr       varchar(4) not null
+        constraint t324_pkey
+            primary key,
+    reserviert varchar(22) default NULL::character varying,
+    dlnr       varchar(4)  default NULL::character varying,
+    sa         varchar(3)  default NULL::character varying,
+    beznr      varchar(9)  default NULL::character varying
+);
+
+create index if not exists idxt324_bgnr
+    on tecdoc_gheorghe.t324 (bgnr);
+
+create index if not exists idxt324_beznr
+    on tecdoc_gheorghe.t324 (beznr);
+
+create table if not exists tecdoc_gheorghe.t400
+(
+    artnr_dlnr_genartnr_vknzielart_vknzielnr_lfdnr varchar(52) not null
+        constraint t400_pkey
+            primary key,
+    artnr                                          varchar(22) default NULL::character varying,
+    dlnr                                           varchar(4)  default NULL::character varying,
+    vknzielnr                                      integer,
+    genartnr                                       varchar(5)  default NULL::character varying,
+    sa                                             varchar(3)  not null,
+    lflag                                          varchar(1)  default NULL::character varying,
+    vknzielart                                     varchar(3)  not null,
+    lfdnr                                          varchar(9)  not null
+)
+    with (autovacuum_enabled = false);
+
+create index if not exists idxt400_vknzielnr_vknzielart_genartnr_dlnr
+    on tecdoc_gheorghe.t400 (dlnr, vknzielart, genartnr, vknzielnr);
+
+create index if not exists idxt400_vknzielnr
+    on tecdoc_gheorghe.t400 (vknzielnr);
+
+create index if not exists idxt400_newvknzielnr_vknzielart_genartnr
+    on tecdoc_gheorghe.t400 (vknzielart, vknzielnr, genartnr);
+
+create index if not exists idxt400_lfdnr
+    on tecdoc_gheorghe.t400 (lfdnr);
+
+create index if not exists idxt400_genartnr_dlnr
+    on tecdoc_gheorghe.t400 (dlnr, genartnr);
+
+create index if not exists idxt400_genartnr
+    on tecdoc_gheorghe.t400 (genartnr);
+
+create index if not exists idxt400_dlnr
+    on tecdoc_gheorghe.t400 (dlnr);
+
+create index if not exists idxt400_artnr_dlnr
+    on tecdoc_gheorghe.t400 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t403
+(
+    artnr      varchar(22) default NULL::character varying not null,
+    dlnr       varchar(4)                                  not null,
+    sa         varchar(3)                                  not null,
+    genartnr   varchar(5)  default NULL::character varying not null,
+    vknzielart varchar(3)                                  not null,
+    vknzielnr  integer                                     not null,
+    lfdnr      varchar(9)  default NULL::character varying not null,
+    lkz        varchar(3)  default NULL::character varying not null,
+    exclude varchar (1),
+    losch_flag varchar(1)  default NULL::character varying,
+    constraint t403_pkey
+        primary key (dlnr, vknzielart, vknzielnr, genartnr, artnr, lfdnr, lkz)
+);
+
+create index if not exists idxt403_vknzielnr
+    on tecdoc_gheorghe.t403 (vknzielnr);
+
+create index if not exists idxt403_vknzielart
+    on tecdoc_gheorghe.t403 (vknzielart);
+
+create index if not exists idxt403_lfdnr
+    on tecdoc_gheorghe.t403 (lfdnr);
+
+create index if not exists idxt403_genartnr
+    on tecdoc_gheorghe.t403 (genartnr);
+
+create index if not exists idxt403_dlnr
+    on tecdoc_gheorghe.t403 (dlnr);
+
+create index if not exists idxt403_artnr
+    on tecdoc_gheorghe.t403 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t410
+(
+    artnr      varchar(22) default NULL::character varying,
+    dlnr       varchar(4)  default NULL::character varying,
+    sa         varchar(3),
+    genartnr   varchar(5)  default NULL::character varying,
+    vknzielart varchar(3),
+    vknzielnr  integer,
+    lfdnr      varchar(9),
+    sortnr     varchar(3),
+    kritnr     varchar(4),
+    kritwert   varchar(20),
+    anzsofort  varchar(1),
+    lkz        varchar(3),
+    exclude varchar (1),
+    lflag      varchar(1)  default NULL::character varying
+)
+    with (autovacuum_enabled = false);
+
+create index if not exists idxt410_vknzielnr_vknzielart
+    on tecdoc_gheorghe.t410 (vknzielart, vknzielnr);
+
+create index if not exists idxt410_vknzielnr
+    on tecdoc_gheorghe.t410 (vknzielnr);
+
+create index if not exists idxt410_vknzielart
+    on tecdoc_gheorghe.t410 (vknzielart);
+
+create index if not exists idxt410_lfdnr
+    on tecdoc_gheorghe.t410 (lfdnr);
+
+create index if not exists idxt410_genartnr
+    on tecdoc_gheorghe.t410 (genartnr);
+
+create index if not exists idxt410_dlnr
+    on tecdoc_gheorghe.t410 (dlnr);
+
+create index if not exists idxt410_artnr_dlnr
+    on tecdoc_gheorghe.t410 (dlnr, artnr);
+
+create table if not exists tecdoc_gheorghe.t532
+(
+    reserviert varchar(22),
+    dlnr       varchar(4) default NULL::character varying,
+    sa         varchar(3) default NULL::character varying,
+    ktypnr     integer not null
+        constraint t532_pkey
+            primary key,
+    kmodnr     varchar(5) default NULL::character varying,
+    sort       varchar(4) default NULL::character varying,
+    lbeznr     varchar(9) default NULL::character varying,
+    bjvon      varchar(6) default NULL::character varying,
+    bjbis      varchar(6) default NULL::character varying,
+    bauart     varchar(3),
+    motart     varchar(3),
+    kwvon      varchar(4) default NULL::character varying,
+    kwbis      varchar(4) default NULL::character varying,
+    psvon      varchar(4) default NULL::character varying,
+    psbis      varchar(4) default NULL::character varying,
+    ccmtech    varchar(5) default NULL::character varying,
+    tonnage    varchar(5) default NULL::character varying,
+    axleconfig varchar(3) default NULL::character varying,
+    delete     varchar(1) default NULL::character varying,
+    lflag      varchar(1) default NULL::character varying
+);
+
+create index if not exists idxt532_ktypnr
+    on tecdoc_gheorghe.t532 (ktypnr);
+
+create index if not exists idxt532_kmodnr
+    on tecdoc_gheorghe.t532 (kmodnr);
+
+create table if not exists tecdoc_gheorghe.t533
+(
+    reserviert varchar(22) default NULL::character varying,
+    dlnr       varchar(4)                                  not null,
+    sa         varchar(3)                                  not null,
+    ktypnr     integer                                     not null,
+    lkz        varchar(3)  default NULL::character varying not null,
+    exclude varchar (1),
+    losch_flag varchar(1)  default NULL::character varying,
+    constraint t533_pkey
+        primary key (ktypnr, lkz)
+);
+
+
+

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }}</title>
+    <style>
+      :root {
+        --bg: #0f1419;
+        --panel: #1a2332;
+        --text: #e7ecf3;
+        --muted: #8b9cb3;
+        --accent: #3d8bfd;
+        --ok: #3ecf8e;
+        --err: #f56565;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+      }
+      p.lead {
+        color: var(--muted);
+        margin: 0 0 2rem;
+      }
+      .panel {
+        background: var(--panel);
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.25rem;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+      }
+      button {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #2d3a4f;
+        color: var(--text);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .pill {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+      .pill.ok {
+        background: rgba(62, 207, 142, 0.15);
+        color: var(--ok);
+      }
+      .pill.bad {
+        background: rgba(245, 101, 101, 0.15);
+        color: var(--err);
+      }
+      .pill.warn {
+        background: rgba(255, 200, 87, 0.15);
+        color: #ffc857;
+      }
+      pre {
+        background: #0d1117;
+        padding: 1rem;
+        border-radius: 8px;
+        overflow: auto;
+        font-size: 0.8rem;
+        max-height: 320px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      th {
+        color: var(--muted);
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>TecDoc ETL</h1>
+      <p class="lead">
+        Download from Teccaliance SFTP (<code>/D_TAF</code>), extract
+        <code>.7z</code>, load delimiter-separated data into
+        <code>tecdoc_gheorghe</code>.
+      </p>
+      <p class="lead" style="margin-top: -1.25rem">
+        <a href="/supplier" style="color: var(--accent); text-decoration: none"
+          >Local <code>.7z</code></a
+        >
+        ·
+        <a href="/folder" style="color: var(--accent); text-decoration: none"
+          >Load extracted folder (<code>data/0001</code>)</a
+        >
+      </p>
+
+      <div class="panel">
+        <div class="row" style="margin-bottom: 0.75rem">
+          <strong>Database</strong>
+          <span id="db-pill" class="pill warn">…</span>
+        </div>
+        <div class="muted" id="db-url"></div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <button type="button" id="btn-sync">Run full sync</button>
+          <button type="button" class="secondary" id="btn-dry">Dry run (list SFTP)</button>
+          <span id="sync-pill" class="pill warn" style="display: none">Sync running</span>
+        </div>
+        <p class="muted" style="margin-top: 0.75rem; margin-bottom: 0">
+          Jobs run in the background. Refresh the job list or open a job by id.
+        </p>
+      </div>
+
+      <div class="panel">
+        <h2 style="font-size: 1.1rem; margin: 0 0 1rem">Recent jobs</h2>
+        <button type="button" class="secondary" id="btn-refresh" style="margin-bottom: 1rem">
+          Refresh
+        </button>
+        <div style="overflow-x: auto">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Dry run</th>
+                <th>Started</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody id="jobs-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 style="font-size: 1.1rem; margin: 0 0 0.75rem">Job detail</h2>
+        <div class="row" style="margin-bottom: 0.75rem">
+          <input
+            type="number"
+            id="job-id-input"
+            placeholder="Job id"
+            style="padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid #2d3a4f; background: #0d1117; color: inherit; width: 6rem"
+          />
+          <button type="button" class="secondary" id="btn-load-job">Load</button>
+        </div>
+        <pre id="job-detail">Select a job id or start a sync.</pre>
+      </div>
+    </div>
+    <script>
+      async function health() {
+        const r = await fetch("/api/health");
+        const j = await r.json();
+        const pill = document.getElementById("db-pill");
+        const url = document.getElementById("db-url");
+        if (j.database === "ok") {
+          pill.textContent = "Connected";
+          pill.className = "pill ok";
+        } else if (j.database === "not_configured") {
+          pill.textContent = "Not configured";
+          pill.className = "pill bad";
+        } else {
+          pill.textContent = "Error";
+          pill.className = "pill bad";
+        }
+        url.textContent = j.database_url_masked || "";
+      }
+
+      async function syncStatus() {
+        const r = await fetch("/api/status/sync");
+        const j = await r.json();
+        const el = document.getElementById("sync-pill");
+        el.style.display = j.busy ? "inline-block" : "none";
+      }
+
+      async function loadJobs() {
+        const r = await fetch("/api/jobs");
+        const j = await r.json();
+        const tb = document.getElementById("jobs-body");
+        tb.innerHTML = "";
+        for (const job of j.jobs || []) {
+          const tr = document.createElement("tr");
+          tr.innerHTML =
+            "<td>" +
+            job.id +
+            "</td><td>" +
+            job.status +
+            "</td><td>" +
+            job.dry_run +
+            "</td><td>" +
+            (job.started_at || "") +
+            "</td><td>" +
+            (job.message || "").slice(0, 80) +
+            "</td>";
+          tr.style.cursor = "pointer";
+          tr.addEventListener("click", () => {
+            document.getElementById("job-id-input").value = job.id;
+            loadJob(job.id);
+          });
+          tb.appendChild(tr);
+        }
+      }
+
+      async function loadJob(id) {
+        if (!id) return;
+        const r = await fetch("/api/jobs/" + id);
+        if (!r.ok) {
+          document.getElementById("job-detail").textContent = "Not found";
+          return;
+        }
+        const j = await r.json();
+        document.getElementById("job-detail").textContent = JSON.stringify(j, null, 2);
+      }
+
+      async function startSync(dry) {
+        const r = await fetch("/api/jobs/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dry_run: dry }),
+        });
+        if (r.status === 409) {
+          alert("Sync already running");
+          return;
+        }
+        const j = await r.json();
+        document.getElementById("job-id-input").value = j.job_id;
+        await loadJob(j.job_id);
+        await loadJobs();
+        await syncStatus();
+      }
+
+      document.getElementById("btn-refresh").addEventListener("click", loadJobs);
+      document.getElementById("btn-load-job").addEventListener("click", () => {
+        loadJob(document.getElementById("job-id-input").value);
+      });
+      document.getElementById("btn-sync").addEventListener("click", () => startSync(false));
+      document.getElementById("btn-dry").addEventListener("click", () => startSync(true));
+
+      health();
+      loadJobs();
+      syncStatus();
+      setInterval(syncStatus, 3000);
+    </script>
+  </body>
+</html>

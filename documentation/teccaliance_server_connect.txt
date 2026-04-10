@@ -1,0 +1,27 @@
+Dear Sir/Madam,
+
+ 
+
+your data package is ready for download:
+
+ 
+
+Data Release: 2613
+
+ 
+
+Contract: Amerigo (3021069)
+
+ 
+
+Server: sftp://datapackage.tecalliance.net
+
+Server 360° Images: sftp://datapackagev.tecalliance.net (*)
+
+User: 01118
+
+Password: uoRNbpEu
+
+ 
+
+(*): Please refer to document InformationSheet360Images.7z in your “extras” folder for further details.

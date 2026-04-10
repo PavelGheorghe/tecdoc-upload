@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }}</title>
+    <style>
+      :root {
+        --bg: #0f1419;
+        --panel: #1a2332;
+        --text: #e7ecf3;
+        --muted: #8b9cb3;
+        --accent: #3d8bfd;
+        --ok: #3ecf8e;
+        --err: #f56565;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+      }
+      p.lead {
+        color: var(--muted);
+        margin: 0 0 1rem;
+      }
+      .panel {
+        background: var(--panel);
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.25rem;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+      }
+      a.nav {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a.nav:hover {
+        text-decoration: underline;
+      }
+      button {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #2d3a4f;
+        color: var(--text);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .pill {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+      .pill.warn {
+        background: rgba(255, 200, 87, 0.15);
+        color: #ffc857;
+      }
+      pre {
+        background: #0d1117;
+        padding: 1rem;
+        border-radius: 8px;
+        overflow: auto;
+        font-size: 0.8rem;
+        max-height: 360px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      select {
+        padding: 0.45rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid #2d3a4f;
+        background: #0d1117;
+        color: inherit;
+        min-width: 12rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <p class="lead" style="margin-bottom: 0.5rem">
+        <a class="nav" href="/">← Home</a>
+        ·
+        <a class="nav" href="/folder">Load extracted folder</a>
+      </p>
+      <h1>Local supplier archive</h1>
+      <p class="lead">
+        Pick a <code>.7z</code> file that lives in <code>DATA_DIR</code> (e.g. project
+        <code>data/0001.7z</code> when using Docker bind mount <code>./data:/data</code>).
+        The app extracts it and loads all <code>NNN.xxxx</code> files into
+        <code>tecdoc_gheorghe</code> (same rules as full sync, including
+        <code>SYNC_TRUNCATE</code>).
+      </p>
+
+      <div class="panel">
+        <div class="row" style="margin-bottom: 1rem">
+          <label for="archive-select"><strong>Archive</strong></label>
+          <select id="archive-select" aria-label="Local 7z archive"></select>
+          <button type="button" id="btn-load">Extract and load</button>
+          <span id="sync-pill" class="pill warn" style="display: none">Job running</span>
+        </div>
+        <p class="muted" style="margin: 0">
+          Only one background job at a time (shared with SFTP sync). Job progress includes
+          <code>source: local</code> and the archive name.
+        </p>
+      </div>
+
+      <div class="panel">
+        <h2 style="font-size: 1.1rem; margin: 0 0 0.75rem">Job detail</h2>
+        <div class="row" style="margin-bottom: 0.75rem">
+          <input
+            type="number"
+            id="job-id-input"
+            placeholder="Job id"
+            style="padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid #2d3a4f; background: #0d1117; color: inherit; width: 6rem"
+          />
+          <button type="button" class="secondary" id="btn-load-job">Load</button>
+          <button type="button" class="secondary" id="btn-refresh-archives">Refresh list</button>
+        </div>
+        <pre id="job-detail">Choose an archive and start a load, or enter a job id.</pre>
+      </div>
+    </div>
+    <script>
+      async function syncStatus() {
+        const r = await fetch("/api/status/sync");
+        const j = await r.json();
+        const el = document.getElementById("sync-pill");
+        el.style.display = j.busy ? "inline-block" : "none";
+      }
+
+      async function fillArchives() {
+        const r = await fetch("/api/local-archives");
+        const j = await r.json();
+        const sel = document.getElementById("archive-select");
+        const prev = sel.value;
+        sel.innerHTML = "";
+        const names = j.archives || [];
+        if (names.length === 0) {
+          const o = document.createElement("option");
+          o.value = "";
+          o.textContent = "(no .7z in DATA_DIR)";
+          sel.appendChild(o);
+          return;
+        }
+        for (const n of names) {
+          const o = document.createElement("option");
+          o.value = n;
+          o.textContent = n;
+          sel.appendChild(o);
+        }
+        if (prev && names.includes(prev)) sel.value = prev;
+        else if (names.includes("0001.7z")) sel.value = "0001.7z";
+        else sel.selectedIndex = 0;
+      }
+
+      async function loadJob(id) {
+        if (!id) return;
+        const r = await fetch("/api/jobs/" + id);
+        if (!r.ok) {
+          document.getElementById("job-detail").textContent = "Not found";
+          return;
+        }
+        const j = await r.json();
+        document.getElementById("job-detail").textContent = JSON.stringify(j, null, 2);
+      }
+
+      async function startLocalLoad() {
+        const sel = document.getElementById("archive-select");
+        const filename = sel.value;
+        if (!filename) {
+          alert("No archive selected");
+          return;
+        }
+        const r = await fetch("/api/jobs/load-local", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename }),
+        });
+        if (r.status === 409) {
+          alert("Another sync job is already running");
+          await syncStatus();
+          return;
+        }
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          document.getElementById("job-detail").textContent =
+            "Error " + r.status + ": " + (err.detail || r.statusText);
+          return;
+        }
+        const j = await r.json();
+        document.getElementById("job-id-input").value = j.job_id;
+        await loadJob(j.job_id);
+        await syncStatus();
+      }
+
+      document.getElementById("btn-load").addEventListener("click", startLocalLoad);
+      document.getElementById("btn-load-job").addEventListener("click", () => {
+        loadJob(document.getElementById("job-id-input").value);
+      });
+      document.getElementById("btn-refresh-archives").addEventListener("click", fillArchives);
+
+      fillArchives();
+      syncStatus();
+      setInterval(syncStatus, 3000);
+    </script>
+  </body>
+</html>

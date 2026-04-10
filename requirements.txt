@@ -1,0 +1,8 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-dotenv==1.0.1
+psycopg2-binary==2.9.10
+paramiko==3.5.0
+jinja2==3.1.4
+python-multipart==0.0.17
+pypdf==5.1.0  # scripts/generate_tecdoc_column_map_csv.py (TecDoc PDF → column position CSV)

@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /data
+      # Default fixed_width; override in .env with ROW_PARSE_MODE=delimiter if needed
+      ROW_PARSE_MODE: ${ROW_PARSE_MODE:-fixed_width}
+    volumes:
+      # Host ./data holds local .7z files (e.g. 0001.7z) for /supplier; downloads/extract live here too.
+      - ./data:/data
+    restart: unless-stopped
