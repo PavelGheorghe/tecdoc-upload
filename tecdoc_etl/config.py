@@ -60,6 +60,14 @@ def _normalize_t030_layout() -> str:
     return "supplier"
 
 
+def _normalize_d_taf_subdir() -> str:
+    """Single path segment under DATA_DIR (default ``D_TAF``)."""
+    s = os.environ.get("D_TAF_SUBDIR", "D_TAF").strip().strip("/\\")
+    if not s or "/" in s or "\\" in s or s in (".", ".."):
+        return "D_TAF"
+    return s
+
+
 def _normalize_row_parse_mode() -> str:
     """Default fixed_width; only delimiter opts into semicolon (FIELD_DELIMITER) splitting."""
     raw = os.environ.get("ROW_PARSE_MODE", "fixed_width").strip().lower().replace("-", "_")
@@ -113,6 +121,8 @@ class Settings:
     use_tecdoc_csv_positions: bool
     # When False (default), t030 uses PDF CSV slices whenever the CSV maps t030, even if USE_TECDOC_CSV_POSITIONS=0
     t030_use_supplier_layout: bool
+    # Immediate subfolder of DATA_DIR containing per-supplier extract trees (e.g. data/D_TAF/0001)
+    d_taf_subdir: str
 
 
 def load_settings() -> Settings:
@@ -146,6 +156,7 @@ def load_settings() -> Settings:
         t030_layout=_normalize_t030_layout(),
         use_tecdoc_csv_positions=_use_tecdoc_csv_positions(),
         t030_use_supplier_layout=_t030_use_supplier_layout(),
+        d_taf_subdir=_normalize_d_taf_subdir(),
     )
 
 

@@ -33,6 +33,7 @@ def update_job(
     progress: dict[str, Any] | None = None,
     errors: list[dict[str, Any]] | None = None,
     finished: bool = False,
+    clear_finished_at: bool = False,
 ) -> None:
     parts: list[str] = []
     vals: list[Any] = []
@@ -48,6 +49,8 @@ def update_job(
     if errors is not None:
         parts.append("errors = %s")
         vals.append(Json(errors))
+    if clear_finished_at:
+        parts.append("finished_at = NULL")
     if finished:
         parts.append("finished_at = now()")
     if not parts:

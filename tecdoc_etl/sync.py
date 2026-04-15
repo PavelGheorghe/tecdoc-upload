@@ -1,15 +1,18 @@
 import logging
 import os
 import re
+import shutil
 import threading
 from pathlib import Path
 from typing import Any, Callable
 
 import psycopg2.extensions
 
+from tecdoc_etl.archive_skip import skip_logistics_supplier_id
 from tecdoc_etl.config import SCHEMA, Settings
 from tecdoc_etl.db import (
     connect,
+    delete_tecdoc_rows_for_dlnr,
     ensure_etl_schema,
     list_schema_tables,
     ping_db,
@@ -70,6 +73,8 @@ def resolve_local_archive_basename(settings: Settings, filename: str) -> Path:
     name = filename.strip()
     if not name or not LOCAL_ARCHIVE_NAME_RE.match(name):
         raise ValueError("Invalid archive name")
+    if skip_logistics_supplier_id(name):
+        raise ValueError(f"Logistics archives are skipped: {name}")
     data_dir = Path(settings.data_dir).resolve()
     candidate = (data_dir / name).resolve()
     try:
@@ -91,7 +96,9 @@ def list_local_archives(settings: Settings) -> list[str]:
     names = sorted(
         p.name
         for p in data_dir.iterdir()
-        if p.is_file() and p.suffix.lower() == ".7z"
+        if p.is_file()
+        and p.suffix.lower() == ".7z"
+        and not skip_logistics_supplier_id(p.name)
     )
     return names
 
@@ -131,8 +138,19 @@ def _load_from_extract_dirs(
     progress: dict[str, Any],
     errors: list[dict[str, Any]],
     log: Callable[[str], None],
+    *,
+    truncate_all: bool | None = None,
+    finalize_job: bool = True,
 ) -> dict[str, Any]:
-    """Merge discovery from extract roots, optional truncate, COPY into tables."""
+    """
+    Merge discovery from extract roots, optional truncate, COPY into tables.
+
+    ``truncate_all``: when ``True``, truncate every ``tecdoc_gheorghe`` table before load; when
+    ``False``, append only; when ``None``, follow ``settings.sync_truncate``.
+
+    ``finalize_job``: when ``False``, do not set job status to completed/failed or ``finished_at``
+    (used by multi-supplier D_TAF batch loads).
+    """
     steps: list[dict[str, Any]] = progress.setdefault("steps", [])
 
     def step(msg: str) -> None:
@@ -177,17 +195,24 @@ def _load_from_extract_dirs(
 
     if not to_load:
         msg = "No data files matched existing tables."
-        errors.append({"level": "error", "message": msg})
-        step(msg)
-        update_job(
-            conn,
-            job_id,
-            status="failed",
-            message=msg,
-            progress=progress,
-            errors=errors,
-            finished=True,
-        )
+        progress["total_rows"] = 0
+        progress["phase"] = "no_files"
+        if finalize_job:
+            errors.append({"level": "error", "message": msg})
+            step(msg)
+            update_job(
+                conn,
+                job_id,
+                status="failed",
+                message=msg,
+                progress=progress,
+                errors=errors,
+                finished=True,
+            )
+        else:
+            errors.append({"level": "warning", "message": msg, "scope": "supplier_chunk"})
+            step(msg)
+            update_job(conn, job_id, progress=progress, errors=errors)
         return get_job(conn, job_id)  # type: ignore[return-value]
 
     step(
@@ -195,14 +220,15 @@ def _load_from_extract_dirs(
         f"{', '.join(sorted(to_load.keys())[:20])}{'…' if len(to_load) > 20 else ''}"
     )
 
-    if settings.sync_truncate:
+    do_truncate = settings.sync_truncate if truncate_all is None else truncate_all
+    if do_truncate:
         progress["phase"] = "truncate"
-        step("Truncating all tables in tecdoc_gheorghe (SYNC_TRUNCATE=1) …")
+        step("Truncating all tables in tecdoc_gheorghe …")
         truncate_all_tecdoc_tables(conn)
         step("Truncate finished.")
         update_job(conn, job_id, progress=progress)
     else:
-        step("SYNC_TRUNCATE=0: appending rows without truncating tables.")
+        step("Skipping full truncate: appending rows (per-supplier loads use DELETE by dlnr first).")
 
     progress["phase"] = "load"
     total_rows = 0
@@ -262,15 +288,18 @@ def _load_from_extract_dirs(
 
     progress["phase"] = "done"
     progress["total_rows"] = total_rows
-    update_job(
-        conn,
-        job_id,
-        status="completed",
-        message=f"Loaded {total_rows} rows.",
-        progress=progress,
-        errors=errors,
-        finished=True,
-    )
+    if finalize_job:
+        update_job(
+            conn,
+            job_id,
+            status="completed",
+            message=f"Loaded {total_rows} rows.",
+            progress=progress,
+            errors=errors,
+            finished=True,
+        )
+    else:
+        update_job(conn, job_id, progress=progress, errors=errors, message=f"Chunk: {total_rows} rows.")
     return get_job(conn, job_id)  # type: ignore[return-value]
 
 
@@ -408,6 +437,8 @@ def run_local_archive_sync(
         raise FileNotFoundError(f"Not a file: {archive_path}")
     if archive_path.suffix.lower() != ".7z":
         raise ValueError("Expected a .7z archive")
+    if skip_logistics_supplier_id(archive_path.name):
+        raise ValueError(f"Logistics archives are skipped: {archive_path.name}")
 
     conn = connect(settings)
     ensure_etl_schema(conn)
@@ -584,5 +615,333 @@ def run_folder_load_task(
     _set_running(True)
     try:
         run_folder_load_sync(settings, folder_path, job_id=job_id)
+    finally:
+        _set_running(False)
+
+
+def list_d_taf_supplier_folders(settings: Settings) -> list[str]:
+    """Sorted supplier ids under D_TAF (from ``list_d_taf_supplier_plan``)."""
+    return [e["id"] for e in list_d_taf_supplier_plan(settings)]
+
+
+def list_d_taf_supplier_plan(settings: Settings) -> list[dict[str, Any]]:
+    """
+    Build the ordered D_TAF batch plan: ``.7z`` archives and/or per-supplier folders, **ASC** by id.
+
+    Each entry: ``{"id": "0001", "kind": "archive"|"folder", "path": "<absolute path>"}``.
+    If both ``0001.7z`` and directory ``0001/`` exist, the **archive** is used (single row per id).
+
+    Suppliers whose id (archive stem or folder name) contains ``_logistics`` (case-insensitive)
+    are omitted.
+    """
+    try:
+        root = resolve_d_taf_root(settings)
+    except FileNotFoundError:
+        return []
+
+    archives: dict[str, Path] = {}
+    for p in root.iterdir():
+        if not p.is_file() or p.suffix.lower() != ".7z":
+            continue
+        if not LOCAL_ARCHIVE_NAME_RE.match(p.name):
+            continue
+        if skip_logistics_supplier_id(p.name):
+            continue
+        stem = p.stem
+        if not DATA_FOLDER_NAME_RE.match(stem) or stem in (".", ".."):
+            continue
+        archives[stem] = p.resolve()
+
+    folders: dict[str, Path] = {}
+    for p in root.iterdir():
+        if not p.is_dir():
+            continue
+        if not DATA_FOLDER_NAME_RE.match(p.name) or p.name in (".", ".."):
+            continue
+        if skip_logistics_supplier_id(p.name):
+            continue
+        folders[p.name] = p.resolve()
+
+    keys = sorted(set(archives) | set(folders))
+    out: list[dict[str, Any]] = []
+    for k in keys:
+        if k in archives:
+            out.append({"id": k, "kind": "archive", "path": str(archives[k])})
+        else:
+            out.append({"id": k, "kind": "folder", "path": str(folders[k])})
+    return out
+
+
+def _d_taf_plan_from_progress(prog: dict[str, Any], root: Path) -> list[dict[str, Any]]:
+    """Restore per-supplier source from job JSON, or legacy folder-only plan."""
+    plan = prog.get("supplier_plan")
+    if isinstance(plan, list) and plan:
+        return list(plan)
+    return [
+        {"id": s, "kind": "folder", "path": str(root / s)}
+        for s in prog.get("suppliers", [])
+    ]
+
+
+def _filtered_d_taf_plan_and_index(
+    raw_plan: list[dict[str, Any]], idx_in_raw: int
+) -> tuple[list[dict[str, Any]], int]:
+    """
+    Drop logistics suppliers from ``raw_plan``. Map ``idx_in_raw`` (index into the unfiltered plan
+    as stored on the job) to the starting index in the filtered plan for resume.
+    """
+    filtered = [e for e in raw_plan if not skip_logistics_supplier_id(str(e.get("id", "")))]
+    n_raw = len(raw_plan)
+    i = max(0, min(int(idx_in_raw), n_raw))
+    c_before = sum(
+        1
+        for j in range(i)
+        if j < n_raw and not skip_logistics_supplier_id(str(raw_plan[j].get("id", "")))
+    )
+    return filtered, c_before
+
+
+def _d_taf_require_under_data_dir(settings: Settings, path: Path) -> Path:
+    data_dir = Path(settings.data_dir).resolve()
+    resolved = path.resolve()
+    try:
+        resolved.relative_to(data_dir)
+    except ValueError as e:
+        raise ValueError(f"Path must be under DATA_DIR: {path}") from e
+    return resolved
+
+
+def resolve_d_taf_root(settings: Settings) -> Path:
+    """Resolved ``data_dir / d_taf_subdir``; must stay under ``data_dir``."""
+    data_dir = Path(settings.data_dir).resolve()
+    root = (data_dir / settings.d_taf_subdir).resolve()
+    try:
+        root.relative_to(data_dir)
+    except ValueError as e:
+        raise ValueError("D_TAF path escapes data directory") from e
+    if not root.is_dir():
+        raise FileNotFoundError(
+            f"D_TAF directory not found: {data_dir / settings.d_taf_subdir}"
+        )
+    return root
+
+
+def run_d_taf_batch_sync(settings: Settings, job_id: int) -> dict[str, Any]:
+    """
+    Sequentially load each supplier under ``DATA_DIR/D_TAF_SUBDIR`` into ``tecdoc_gheorghe``.
+
+    Sources are ``*.7z`` archives (extracted to ``DATA_DIR/extract/<stem>/``) and/or existing
+    per-supplier folders (see ``list_d_taf_supplier_plan``). Ascending order by supplier id; if both
+    ``0001.7z`` and ``0001/`` exist, the archive is used.
+
+    For each supplier: delete existing rows for that ``dlnr``, then COPY (no global truncate).
+    """
+    conn = connect(settings)
+    ensure_etl_schema(conn)
+    if not ping_db(conn):
+        raise RuntimeError("Database ping failed")
+
+    j = get_job(conn, job_id)
+    if not j:
+        raise ValueError(f"Job {job_id} not found")
+    prog: dict[str, Any] = dict(j["progress"])
+    if prog.get("kind") != "d_taf_batch":
+        raise ValueError("Job progress is not a D_TAF batch (kind != d_taf_batch)")
+
+    errors: list[dict[str, Any]] = list(j.get("errors") or [])
+    root = Path(prog["root"])
+    raw_plan = _d_taf_plan_from_progress(prog, root)
+    idx_raw = int(prog.get("index", 0))
+    plan, idx_start = _filtered_d_taf_plan_and_index(raw_plan, idx_raw)
+    n_plan = len(plan)
+    raw_ids = [str(e.get("id", "")) for e in raw_plan]
+    filt_ids = [str(e.get("id", "")) for e in plan]
+    if raw_ids != filt_ids:
+        prog["supplier_plan"] = plan
+        prog["suppliers"] = filt_ids
+        prog["index"] = idx_start
+        update_job(conn, job_id, progress=prog, errors=errors)
+
+    def log(msg: str) -> None:
+        logger.info("[d_taf job=%s] %s", job_id, msg)
+
+    try:
+        conn.set_client_encoding("UTF8")
+        batch_totals = int(prog.get("batch_total_rows", 0))
+
+        for i in range(idx_start, n_plan):
+            entry = plan[i]
+            supplier = entry["id"]
+            kind = entry.get("kind") or "folder"
+            src_path = _d_taf_require_under_data_dir(settings, Path(entry["path"]))
+
+            prog["index"] = i
+            prog["current_supplier"] = supplier
+            prog["phase"] = "purge_supplier"
+            prog.setdefault("steps", []).append(
+                {
+                    "message": (
+                        f"[D_TAF] Supplier {supplier} ({i + 1}/{n_plan}, {kind}): "
+                        "purge existing rows for this dlnr …"
+                    )
+                }
+            )
+            update_job(conn, job_id, progress=prog, errors=errors)
+
+            log(f"Purging database rows for supplier {supplier!r} ({kind})")
+            purge_info = delete_tecdoc_rows_for_dlnr(conn, supplier, log=logger)
+            prog.setdefault("purge_log", []).append({"supplier": supplier, **purge_info})
+            prog["steps"].append(
+                {
+                    "message": (
+                        f"[D_TAF] Purge {supplier}: "
+                        f"{purge_info['rows_deleted_total']} row(s) removed from "
+                        f"{purge_info['tables_touched']} table(s) (with FK-safe retries)."
+                    )
+                }
+            )
+            update_job(conn, job_id, progress=prog, errors=errors)
+
+            if kind == "archive":
+                if not src_path.is_file():
+                    err = f"Supplier archive missing: {src_path}"
+                    errors.append({"level": "error", "message": err, "supplier": supplier})
+                    update_job(
+                        conn,
+                        job_id,
+                        status="failed",
+                        message=err,
+                        progress=prog,
+                        errors=errors,
+                        finished=True,
+                    )
+                    raise FileNotFoundError(err)
+                extract_parent = Path(settings.data_dir).resolve() / "extract"
+                extract_root = _d_taf_require_under_data_dir(
+                    settings, extract_parent / src_path.stem
+                )
+                prog["phase"] = "extract_supplier"
+                prog["steps"].append(
+                    {
+                        "message": (
+                            f"[D_TAF] Supplier {supplier}: extracting {src_path.name} "
+                            f"→ {extract_root} …"
+                        )
+                    }
+                )
+                update_job(conn, job_id, progress=prog, errors=errors)
+                if extract_root.exists():
+                    shutil.rmtree(extract_root)
+                extract_root.mkdir(parents=True, exist_ok=True)
+                extract_7z(src_path, extract_root, on_progress=log)
+                prog["steps"].append(
+                    {
+                        "message": (
+                            f"[D_TAF] Supplier {supplier}: extraction finished; loading from "
+                            f"{extract_root.name}/"
+                        )
+                    }
+                )
+                update_job(conn, job_id, progress=prog, errors=errors)
+                load_roots = [extract_root]
+            else:
+                if not src_path.is_dir():
+                    err = f"Supplier folder missing: {src_path}"
+                    errors.append({"level": "error", "message": err, "supplier": supplier})
+                    update_job(
+                        conn,
+                        job_id,
+                        status="failed",
+                        message=err,
+                        progress=prog,
+                        errors=errors,
+                        finished=True,
+                    )
+                    raise FileNotFoundError(err)
+                load_roots = [src_path]
+
+            prog["tables"] = {}
+            prog["skipped_tables"] = []
+            prog["total_rows"] = 0
+            prog["phase"] = "load_supplier"
+
+            _load_from_extract_dirs(
+                conn,
+                settings,
+                job_id,
+                load_roots,
+                prog,
+                errors,
+                log,
+                truncate_all=False,
+                finalize_job=False,
+            )
+
+            chunk_rows = int(prog.get("total_rows", 0))
+            batch_totals += chunk_rows
+            prog["batch_total_rows"] = batch_totals
+            by = prog.setdefault("by_supplier", {})
+            by[supplier] = {
+                "rows": chunk_rows,
+                "kind": kind,
+                "tables": dict(prog.get("tables", {})),
+            }
+            comp = prog.setdefault("completed", [])
+            if supplier not in comp:
+                comp.append(supplier)
+            prog["index"] = i + 1
+            prog["current_supplier"] = None
+            prog["steps"].append(
+                {
+                    "message": (
+                        f"[D_TAF] Supplier {supplier} done: {chunk_rows} row(s) "
+                        f"({kind}); batch cumulative {batch_totals}."
+                    )
+                }
+            )
+            update_job(conn, job_id, progress=prog, errors=errors)
+
+        prog["phase"] = "done"
+        prog["current_supplier"] = None
+        update_job(
+            conn,
+            job_id,
+            status="completed",
+            message=(
+                f"D_TAF batch finished: {n_plan} supplier(s), "
+                f"{prog.get('batch_total_rows', 0)} row(s) loaded."
+            ),
+            progress=prog,
+            errors=errors,
+            finished=True,
+        )
+        return get_job(conn, job_id)  # type: ignore[return-value]
+    except Exception as e:
+        logger.exception("D_TAF batch failed")
+        errors.append(
+            {
+                "level": "error",
+                "message": str(e),
+                "supplier": prog.get("current_supplier"),
+            }
+        )
+        update_job(
+            conn,
+            job_id,
+            status="failed",
+            message=str(e),
+            progress=prog,
+            errors=errors,
+            finished=True,
+        )
+        raise
+    finally:
+        conn.close()
+
+
+def run_d_taf_batch_task(settings: Settings, job_id: int) -> None:
+    _set_running(True)
+    try:
+        run_d_taf_batch_sync(settings, job_id)
     finally:
         _set_running(False)

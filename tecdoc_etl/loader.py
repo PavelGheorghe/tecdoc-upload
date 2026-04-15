@@ -203,8 +203,20 @@ def _load_fixed_width(
         )
     )
 
+    t040_seen_pk: set[tuple[str, str]] | None = None
+    t040_ia: int | None = None
+    t040_idl: int | None = None
+    if table_name == "t040":
+        try:
+            t040_ia = column_names.index("adressart")
+            t040_idl = column_names.index("dlnr")
+            t040_seen_pk = set()
+        except ValueError:
+            t040_ia = t040_idl = None
+
     fd, tmp_path = tempfile.mkstemp(prefix="tecdoc_copy_", suffix=".txt", text=True)
     os.close(fd)
+    dup_t040 = 0
     try:
         with open(file_path, "r", encoding=encoding, errors="replace") as src, open(
             tmp_path, "w", encoding="utf-8", newline=""
@@ -245,6 +257,21 @@ def _load_fixed_width(
                             raw[:120],
                         )
                     continue
+                if t040_seen_pk is not None and t040_ia is not None and t040_idl is not None:
+                    pk = (fields[t040_ia], fields[t040_idl])
+                    if pk in t040_seen_pk:
+                        dup_t040 += 1
+                        if dup_t040 <= 5:
+                            logger.warning(
+                                "%sskipping duplicate t040 PK (adressart, dlnr)=%s in %s "
+                                "source line %s (keep first row per file)",
+                                log_prefix,
+                                pk,
+                                file_path,
+                                record_no,
+                            )
+                        continue
+                    t040_seen_pk.add(pk)
                 dst.write(row_to_copy_line(fields, col_count, empty_as_null))
                 rows += 1
 
@@ -267,6 +294,13 @@ def _load_fixed_width(
             "%sskipped %s row(s) (length/layout) in %s",
             log_prefix,
             bad_rows,
+            file_path,
+        )
+    if table_name == "t040" and dup_t040:
+        logger.warning(
+            "%sskipped %s duplicate t040 primary key row(s) in %s (first row kept per key)",
+            log_prefix,
+            dup_t040,
             file_path,
         )
     return rows

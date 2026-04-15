@@ -4,6 +4,7 @@ from pathlib import Path
 
 import paramiko
 
+from tecdoc_etl.archive_skip import skip_logistics_supplier_id
 from tecdoc_etl.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,11 @@ def list_remote_archives(settings: Settings) -> list[str]:
         try:
             names = sftp.listdir(settings.sftp_remote_dir)
             matches = sorted(
-                n for n in names if fnmatch.fnmatch(n, pattern) and not n.startswith(".")
+                n
+                for n in names
+                if fnmatch.fnmatch(n, pattern)
+                and not n.startswith(".")
+                and not skip_logistics_supplier_id(n)
             )
             if settings.sftp_max_files is not None:
                 matches = matches[: settings.sftp_max_files]
@@ -81,7 +86,11 @@ def download_taf_archives(
                     f"Cannot access remote directory {settings.sftp_remote_dir!r}: {e}"
                 ) from e
             matches = sorted(
-                n for n in names if fnmatch.fnmatch(n, pattern) and not n.startswith(".")
+                n
+                for n in names
+                if fnmatch.fnmatch(n, pattern)
+                and not n.startswith(".")
+                and not skip_logistics_supplier_id(n)
             )
             if settings.sftp_max_files is not None:
                 matches = matches[: settings.sftp_max_files]

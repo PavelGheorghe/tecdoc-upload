@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }}</title>
+    <style>
+      :root {
+        --bg: #0f1419;
+        --panel: #1a2332;
+        --text: #e7ecf3;
+        --muted: #8b9cb3;
+        --accent: #3d8bfd;
+        --ok: #3ecf8e;
+        --err: #f56565;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+      }
+      p.lead {
+        color: var(--muted);
+        margin: 0 0 1.25rem;
+      }
+      .panel {
+        background: var(--panel);
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.25rem;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+      }
+      button {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #2d3a4f;
+        color: var(--text);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .pill {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+      .pill.ok {
+        background: rgba(62, 207, 142, 0.15);
+        color: var(--ok);
+      }
+      .pill.bad {
+        background: rgba(245, 101, 101, 0.15);
+        color: var(--err);
+      }
+      .pill.warn {
+        background: rgba(255, 200, 87, 0.15);
+        color: #ffc857;
+      }
+      pre {
+        background: #0d1117;
+        padding: 1rem;
+        border-radius: 8px;
+        overflow: auto;
+        font-size: 0.8rem;
+        max-height: 420px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      input[type="number"] {
+        padding: 0.4rem 0.6rem;
+        border-radius: 6px;
+        border: 1px solid #2d3a4f;
+        background: #0d1117;
+        color: inherit;
+        width: 7rem;
+      }
+      code {
+        font-size: 0.88em;
+      }
+      ul.suppliers {
+        margin: 0.5rem 0 0;
+        padding-left: 1.25rem;
+        max-height: 200px;
+        overflow: auto;
+        columns: 3;
+        column-gap: 1.5rem;
+      }
+      @media (max-width: 640px) {
+        ul.suppliers {
+          columns: 2;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Load all suppliers (D_TAF)</h1>
+      <p class="lead">
+        Under <code>DATA_DIR</code> / <code>{{ d_taf_subdir }}</code> (<code>D_TAF_SUBDIR</code>),
+        picks each supplier in <strong>ascending</strong> id order from <code>*.7z</code> archives
+        (e.g. <code>0001.7z</code>) and/or extracted folders. Archives are unpacked to
+        <code>DATA_DIR/extract/&lt;id&gt;/</code> before load. If both <code>0001.7z</code> and
+        <code>0001/</code> exist, the <strong>zip</strong> is used. Then: purge that
+        <code>dlnr</code>, import files (no global truncate).
+      </p>
+      <p class="lead" style="margin-top: -0.75rem">
+        <a href="/" style="color: var(--accent); text-decoration: none">← Dashboard</a>
+        ·
+        <a href="/folder" style="color: var(--accent); text-decoration: none">Single folder</a>
+      </p>
+
+      <div class="panel">
+        <div class="row" style="margin-bottom: 0.75rem">
+          <strong>Sync slot</strong>
+          <span id="sync-pill" class="pill warn" style="display: none">Job running</span>
+          <span id="sync-free" class="pill ok" style="display: none">Idle</span>
+        </div>
+        <p class="muted" style="margin: 0">
+          Only one background sync/load can run at a time (same as SFTP sync).
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="row" style="margin-bottom: 0.75rem">
+          <strong>Suppliers (archive or folder)</strong>
+          <button type="button" class="secondary" id="btn-refresh-suppliers">Refresh list</button>
+        </div>
+        <div class="muted" id="d-taf-root"></div>
+        <ul class="suppliers muted" id="suppliers-list"></ul>
+      </div>
+
+      <div class="panel">
+        <h2 style="font-size: 1.1rem; margin: 0 0 1rem">Start batch</h2>
+        <div class="row">
+          <button type="button" id="btn-start-batch">Start load all suppliers</button>
+        </div>
+        <p class="muted" style="margin: 0.75rem 0 0">
+          Creates a new job. Progress and resume state are stored in
+          <code>tecdoc_etl.sync_jobs</code>.
+        </p>
+      </div>
+
+      <div class="panel">
+        <h2 style="font-size: 1.1rem; margin: 0 0 1rem">Resume failed batch</h2>
+        <div class="row">
+          <input type="number" id="resume-job-id" min="1" placeholder="Job id" />
+          <button type="button" class="secondary" id="btn-resume">Resume</button>
+        </div>
+        <p class="muted" style="margin: 0.75rem 0 0">
+          Uses the same job row: clears and reloads the supplier at
+          <code>progress.index</code>, then continues in order.
+        </p>
+      </div>
+
+      <div class="panel">
+        <h2 style="font-size: 1.1rem; margin: 0 0 0.75rem">Job detail</h2>
+        <div class="row" style="margin-bottom: 0.75rem">
+          <input type="number" id="job-id-input" min="1" placeholder="Job id" />
+          <button type="button" class="secondary" id="btn-load-job">Load</button>
+          <label class="muted" style="display: flex; align-items: center; gap: 0.35rem">
+            <input type="checkbox" id="auto-refresh" checked />
+            Auto-refresh while running
+          </label>
+        </div>
+        <pre id="job-detail">Start a batch or enter a job id.</pre>
+      </div>
+    </div>
+    <script>
+      let pollTimer = null;
+      let lastLoadedId = null;
+
+      async function syncStatus() {
+        const r = await fetch("/api/status/sync");
+        const j = await r.json();
+        const busy = j.busy;
+        document.getElementById("sync-pill").style.display = busy ? "inline-block" : "none";
+        document.getElementById("sync-free").style.display = busy ? "none" : "inline-block";
+        return busy;
+      }
+
+      async function loadSuppliers() {
+        const r = await fetch("/api/d-taf/suppliers");
+        const j = await r.json();
+        const entries = j.entries || [];
+        document.getElementById("d-taf-root").textContent =
+          "Root: " +
+          (j.root || "") +
+          "  ·  " +
+          entries.length +
+          " supplier(s)";
+        const ul = document.getElementById("suppliers-list");
+        ul.innerHTML = "";
+        for (const e of entries) {
+          const li = document.createElement("li");
+          const k = e.kind === "archive" ? ".7z" : "dir";
+          li.textContent = e.id + " (" + k + ")";
+          li.title = e.path || "";
+          ul.appendChild(li);
+        }
+        if (!entries.length) {
+          const li = document.createElement("li");
+          li.textContent =
+            "(none — add DATA_DIR/D_TAF/<id>.7z or DATA_DIR/D_TAF/<id>/ folders)";
+          ul.appendChild(li);
+        }
+      }
+
+      async function loadJob(id, silent) {
+        if (!id) return null;
+        const r = await fetch("/api/jobs/" + id);
+        if (!r.ok) {
+          if (!silent) document.getElementById("job-detail").textContent = "Not found";
+          return null;
+        }
+        const j = await r.json();
+        document.getElementById("job-detail").textContent = JSON.stringify(j, null, 2);
+        document.getElementById("job-id-input").value = id;
+        lastLoadedId = id;
+        return j;
+      }
+
+      function schedulePoll() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = null;
+        const auto = document.getElementById("auto-refresh").checked;
+        if (!auto || !lastLoadedId) return;
+        pollTimer = setInterval(async () => {
+          const j = await loadJob(lastLoadedId, true);
+          if (j && (j.status === "completed" || j.status === "failed")) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+          }
+          syncStatus();
+        }, 2500);
+      }
+
+      async function postBatch(body) {
+        const r = await fetch("/api/jobs/load-d-taf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const text = await r.text();
+        let j;
+        try {
+          j = JSON.parse(text);
+        } catch {
+          j = { detail: text };
+        }
+        if (r.status === 409) {
+          alert("Another sync/load is already running.");
+          return;
+        }
+        if (!r.ok) {
+          const d = j.detail;
+          alert(
+            typeof d === "string"
+              ? d
+              : Array.isArray(d)
+                ? d.map((x) => x.msg || JSON.stringify(x)).join("\n")
+                : text || "Request failed"
+          );
+          return;
+        }
+        document.getElementById("job-id-input").value = j.job_id;
+        await loadJob(j.job_id);
+        schedulePoll();
+        await syncStatus();
+        await loadSuppliers();
+      }
+
+      document.getElementById("btn-refresh-suppliers").addEventListener("click", loadSuppliers);
+      document.getElementById("btn-start-batch").addEventListener("click", () => postBatch({}));
+      document.getElementById("btn-resume").addEventListener("click", () => {
+        const id = document.getElementById("resume-job-id").value.trim();
+        if (!id) {
+          alert("Enter a job id to resume");
+          return;
+        }
+        postBatch({ resume_job_id: parseInt(id, 10) });
+      });
+      document.getElementById("btn-load-job").addEventListener("click", () => {
+        loadJob(document.getElementById("job-id-input").value.trim());
+        schedulePoll();
+      });
+      document.getElementById("auto-refresh").addEventListener("change", schedulePoll);
+
+      loadSuppliers();
+      syncStatus();
+      setInterval(syncStatus, 3000);
+    </script>
+  </body>
+</html>

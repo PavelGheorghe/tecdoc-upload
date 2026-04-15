@@ -1,8 +1,14 @@
+import logging
+from typing import Any
+
 import psycopg2
 import psycopg2.extensions
 from psycopg2 import sql
+from psycopg2 import errors as pg_errors
 
 from tecdoc_etl.config import ETL_SCHEMA, SCHEMA, Settings
+
+logger = logging.getLogger(__name__)
 
 
 def connect(settings: Settings) -> psycopg2.extensions.connection:
@@ -119,6 +125,138 @@ def get_table_column_load_meta(
         )
         for r in rows
     ]
+
+
+def list_tables_with_dlnr_column(
+    conn: psycopg2.extensions.connection,
+) -> list[tuple[str, str]]:
+    """
+    Return (table_name, data_type) for base tables in SCHEMA that have a column ``dlnr``.
+    ``data_type`` is from information_schema (e.g. character varying, numeric).
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT c.table_name, c.data_type
+            FROM information_schema.columns c
+            JOIN information_schema.tables t
+              ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+            WHERE c.table_schema = %s
+              AND c.column_name = 'dlnr'
+              AND t.table_type = 'BASE TABLE'
+            ORDER BY c.table_name
+            """,
+            (SCHEMA,),
+        )
+        return [(r[0], (r[1] or "").lower()) for r in cur.fetchall()]
+
+
+def normalize_supplier_folder_to_dlnr_match(folder_name: str) -> tuple[str, int | None]:
+    """
+    Map a D_TAF subdirectory name to values for SQL deletes.
+
+    Returns (varchar_compare, int_value_or_none). For all-digit names, varchar_compare is
+    zero-padded to 4 characters and int_value is the integer (for numeric ``dlnr`` columns).
+    """
+    name = folder_name.strip()
+    if name.isdigit():
+        n = int(name)
+        return (name.zfill(4), n)
+    return (name, None)
+
+
+def delete_tecdoc_rows_for_dlnr(
+    conn: psycopg2.extensions.connection,
+    folder_name: str,
+    *,
+    log: logging.Logger | None = None,
+) -> dict[str, Any]:
+    """
+    Remove rows for one data supplier from all ``tecdoc_gheorghe`` tables that expose ``dlnr``.
+
+    Repeats deletes in a loop to satisfy foreign keys (children before parents). If a pass
+    makes no progress, raises RuntimeError.
+    """
+    lg = log or logger
+    vmatch, num_val = normalize_supplier_folder_to_dlnr_match(folder_name)
+    tables = list_tables_with_dlnr_column(conn)
+    if not tables:
+        return {"tables_touched": 0, "rows_deleted_total": 0, "detail": []}
+
+    remaining = list(tables)
+    total_deleted = 0
+    detail: list[dict[str, Any]] = []
+    max_passes = 25
+    for pass_no in range(max_passes):
+        if not remaining:
+            break
+        progressed = False
+        still: list[tuple[str, str]] = []
+        for table, dtype in remaining:
+            qual = sql.SQL("{}.{}").format(sql.Identifier(SCHEMA), sql.Identifier(table))
+            try:
+                with conn.cursor() as cur:
+                    if "char" in dtype or dtype == "text":
+                        cur.execute(
+                            sql.SQL("DELETE FROM {} WHERE btrim(dlnr::text) = btrim(%s)").format(
+                                qual
+                            ),
+                            (vmatch,),
+                        )
+                    elif dtype in ("smallint", "integer", "bigint") or "numeric" in dtype:
+                        if num_val is None:
+                            lg.warning(
+                                "Skipping %s.%s: numeric dlnr and non-numeric folder %r",
+                                SCHEMA,
+                                table,
+                                folder_name,
+                            )
+                            still.append((table, dtype))
+                            continue
+                        cur.execute(
+                            sql.SQL("DELETE FROM {} WHERE dlnr = %s").format(qual),
+                            (num_val,),
+                        )
+                    else:
+                        cur.execute(
+                            sql.SQL("DELETE FROM {} WHERE dlnr::text = %s").format(qual),
+                            (vmatch,),
+                        )
+                    n = cur.rowcount
+                conn.commit()
+                progressed = True
+                if n:
+                    total_deleted += n
+                    detail.append({"table": table, "rows": n, "pass": pass_no + 1})
+                    lg.info(
+                        "Deleted %s row(s) from %s.%s for supplier %r",
+                        n,
+                        SCHEMA,
+                        table,
+                        folder_name,
+                    )
+            except pg_errors.ForeignKeyViolation:
+                conn.rollback()
+                still.append((table, dtype))
+            except Exception:
+                conn.rollback()
+                raise
+        remaining = still
+        if not progressed and remaining:
+            names = [t for t, _ in remaining]
+            raise RuntimeError(
+                f"Could not delete rows for supplier {folder_name!r}: "
+                f"foreign keys block remaining tables {names}"
+            )
+    if remaining:
+        raise RuntimeError(
+            f"delete_tecdoc_rows_for_dlnr: exceeded {max_passes} passes; left {remaining!r}"
+        )
+    return {
+        "tables_touched": len(detail),
+        "rows_deleted_total": total_deleted,
+        "detail": detail,
+    }
 
 
 def truncate_all_tecdoc_tables(conn: psycopg2.extensions.connection) -> None:
