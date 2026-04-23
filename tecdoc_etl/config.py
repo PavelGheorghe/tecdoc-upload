@@ -68,6 +68,15 @@ def _normalize_d_taf_subdir() -> str:
     return s
 
 
+def _d_taf_truncate_first() -> bool:
+    """
+    D_TAF_TRUNCATE_FIRST: when true, /d-taf truncates schema once at batch start
+    and then only inserts supplier chunks (no per-supplier dlnr purge).
+    """
+    v = os.environ.get("D_TAF_TRUNCATE_FIRST", "0").strip().lower()
+    return v in ("1", "true", "yes", "on")
+
+
 def _normalize_row_parse_mode() -> str:
     """Default fixed_width; only delimiter opts into semicolon (FIELD_DELIMITER) splitting."""
     raw = os.environ.get("ROW_PARSE_MODE", "fixed_width").strip().lower().replace("-", "_")
@@ -123,6 +132,8 @@ class Settings:
     t030_use_supplier_layout: bool
     # Immediate subfolder of DATA_DIR containing per-supplier extract trees (e.g. data/D_TAF/0001)
     d_taf_subdir: str
+    # D_TAF batch mode: truncate all TecDoc tables once before supplier loop, then append only.
+    d_taf_truncate_first: bool
 
 
 def load_settings() -> Settings:
@@ -157,6 +168,7 @@ def load_settings() -> Settings:
         use_tecdoc_csv_positions=_use_tecdoc_csv_positions(),
         t030_use_supplier_layout=_t030_use_supplier_layout(),
         d_taf_subdir=_normalize_d_taf_subdir(),
+        d_taf_truncate_first=_d_taf_truncate_first(),
     )
 
 

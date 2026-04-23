@@ -734,7 +734,9 @@ def run_d_taf_batch_sync(settings: Settings, job_id: int) -> dict[str, Any]:
     per-supplier folders (see ``list_d_taf_supplier_plan``). Ascending order by supplier id; if both
     ``0001.7z`` and ``0001/`` exist, the archive is used.
 
-    For each supplier: delete existing rows for that ``dlnr``, then COPY (no global truncate).
+    For each supplier: purge existing rows by ``dlnr`` unless the batch just truncated the schema
+    in this run (``truncate_first``). On resume after a failure, the current supplier is always
+    purged when ``truncate_first`` is true, because that supplier may be partially loaded.
     """
     conn = connect(settings)
     ensure_etl_schema(conn)
@@ -767,6 +769,32 @@ def run_d_taf_batch_sync(settings: Settings, job_id: int) -> dict[str, Any]:
 
     try:
         conn.set_client_encoding("UTF8")
+        truncate_first = bool(prog.get("truncate_first", settings.d_taf_truncate_first))
+        prog["truncate_first"] = truncate_first
+        did_truncate_this_run = False
+        if truncate_first and not bool(prog.get("truncated_at_start", False)):
+            prog["phase"] = "truncate_batch"
+            prog.setdefault("steps", []).append(
+                {
+                    "message": (
+                        "[D_TAF] Full-refresh mode: truncating all tables in "
+                        f"{SCHEMA} once before supplier loop …"
+                    )
+                }
+            )
+            update_job(conn, job_id, progress=prog, errors=errors)
+            truncate_all_tecdoc_tables(conn)
+            prog["truncated_at_start"] = True
+            did_truncate_this_run = True
+            prog["steps"].append(
+                {
+                    "message": (
+                        f"[D_TAF] Truncate finished for {SCHEMA}; continuing with supplier loads."
+                    )
+                }
+            )
+            update_job(conn, job_id, progress=prog, errors=errors)
+
         batch_totals = int(prog.get("batch_total_rows", 0))
 
         for i in range(idx_start, n_plan):
@@ -777,30 +805,41 @@ def run_d_taf_batch_sync(settings: Settings, job_id: int) -> dict[str, Any]:
 
             prog["index"] = i
             prog["current_supplier"] = supplier
-            prog["phase"] = "purge_supplier"
+            prog["phase"] = "preload_supplier"
+            # truncate_first: skip per-supplier purge only after a fresh schema truncate (empty DB).
+            # On resume, purge the supplier at idx_start — they may be partially loaded.
+            purge_supplier = (not truncate_first) or (
+                truncate_first and (not did_truncate_this_run) and i == idx_start
+            )
+            purge_step_msg = (
+                "purge existing rows for this dlnr …"
+                if purge_supplier
+                else "skip purge (truncate_first=true after batch truncate) …"
+            )
             prog.setdefault("steps", []).append(
                 {
                     "message": (
                         f"[D_TAF] Supplier {supplier} ({i + 1}/{n_plan}, {kind}): "
-                        "purge existing rows for this dlnr …"
+                        + purge_step_msg
                     )
                 }
             )
             update_job(conn, job_id, progress=prog, errors=errors)
 
-            log(f"Purging database rows for supplier {supplier!r} ({kind})")
-            purge_info = delete_tecdoc_rows_for_dlnr(conn, supplier, log=logger)
-            prog.setdefault("purge_log", []).append({"supplier": supplier, **purge_info})
-            prog["steps"].append(
-                {
-                    "message": (
-                        f"[D_TAF] Purge {supplier}: "
-                        f"{purge_info['rows_deleted_total']} row(s) removed from "
-                        f"{purge_info['tables_touched']} table(s) (with FK-safe retries)."
-                    )
-                }
-            )
-            update_job(conn, job_id, progress=prog, errors=errors)
+            if purge_supplier:
+                log(f"Purging database rows for supplier {supplier!r} ({kind})")
+                purge_info = delete_tecdoc_rows_for_dlnr(conn, supplier, log=logger)
+                prog.setdefault("purge_log", []).append({"supplier": supplier, **purge_info})
+                prog["steps"].append(
+                    {
+                        "message": (
+                            f"[D_TAF] Purge {supplier}: "
+                            f"{purge_info['rows_deleted_total']} row(s) removed from "
+                            f"{purge_info['tables_touched']} table(s) (with FK-safe retries)."
+                        )
+                    }
+                )
+                update_job(conn, job_id, progress=prog, errors=errors)
 
             if kind == "archive":
                 if not src_path.is_file():

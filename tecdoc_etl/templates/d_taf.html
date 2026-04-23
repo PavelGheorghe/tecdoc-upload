@@ -136,7 +136,8 @@
         (e.g. <code>0001.7z</code>) and/or extracted folders. Archives are unpacked to
         <code>DATA_DIR/extract/&lt;id&gt;/</code> before load. If both <code>0001.7z</code> and
         <code>0001/</code> exist, the <strong>zip</strong> is used. Then: purge that
-        <code>dlnr</code>, import files (no global truncate).
+        <code>dlnr</code>, import files (no global truncate), unless
+        <code>truncate_first</code> is enabled for a full-refresh run.
       </p>
       <p class="lead" style="margin-top: -0.75rem">
         <a href="/" style="color: var(--accent); text-decoration: none">← Dashboard</a>
@@ -168,6 +169,10 @@
         <h2 style="font-size: 1.1rem; margin: 0 0 1rem">Start batch</h2>
         <div class="row">
           <button type="button" id="btn-start-batch">Start load all suppliers</button>
+          <label class="muted" style="display: flex; align-items: center; gap: 0.35rem">
+            <input type="checkbox" id="truncate-first" />
+            Truncate all tables once before supplier loop
+          </label>
         </div>
         <p class="muted" style="margin: 0.75rem 0 0">
           Creates a new job. Progress and resume state are stored in
@@ -305,7 +310,11 @@
       }
 
       document.getElementById("btn-refresh-suppliers").addEventListener("click", loadSuppliers);
-      document.getElementById("btn-start-batch").addEventListener("click", () => postBatch({}));
+      document.getElementById("btn-start-batch").addEventListener("click", () =>
+        postBatch({
+          truncate_first: document.getElementById("truncate-first").checked,
+        })
+      );
       document.getElementById("btn-resume").addEventListener("click", () => {
         const id = document.getElementById("resume-job-id").value.trim();
         if (!id) {

@@ -215,9 +215,12 @@ def api_load_d_taf_batch(
     Load all suppliers under ``DATA_DIR/D_TAF`` in ascending id order.
 
     Each supplier is either a ``<id>.7z`` archive (extracted to ``DATA_DIR/extract/<id>/``) or an
-    existing ``<id>/`` folder; if both exist, the archive is used. For each: purge that ``dlnr`` in
-    ``tecdoc_gheorghe``, then load (no global truncate). Job progress includes ``supplier_plan``
-    for resume.
+    existing ``<id>/`` folder; if both exist, the archive is used.
+
+    Default mode: for each supplier, purge that ``dlnr`` in ``tecdoc_gheorghe``, then load.
+    Optional full-refresh mode: ``{"truncate_first": true}`` truncates all schema tables once at
+    the beginning of the batch and then only loads suppliers (no per-supplier purge).
+    Job progress includes ``supplier_plan`` for resume.
 
     Resume after a failure: ``{"resume_job_id": <id>}`` — clears and reloads the supplier that was
     in progress, then continues in order.
@@ -230,6 +233,7 @@ def api_load_d_taf_batch(
         )
 
     resume_raw = payload.get("resume_job_id")
+    trunc_raw = payload.get("truncate_first")
     resumed = resume_raw is not None
     conn = connect(settings)
     try:
@@ -279,6 +283,16 @@ def api_load_d_taf_batch(
                         "(see D_TAF_SUBDIR)"
                     ),
                 )
+            if trunc_raw is None:
+                truncate_first = bool(settings.d_taf_truncate_first)
+            elif isinstance(trunc_raw, bool):
+                truncate_first = trunc_raw
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="truncate_first must be boolean when provided",
+                )
+
             suppliers = [e["id"] for e in plan]
             jid = create_job(conn, dry_run=False)
             preview = suppliers[:10]
@@ -289,6 +303,8 @@ def api_load_d_taf_batch(
                 "d_taf_subdir": settings.d_taf_subdir,
                 "suppliers": suppliers,
                 "supplier_plan": plan,
+                "truncate_first": truncate_first,
+                "truncated_at_start": False,
                 "index": 0,
                 "completed": [],
                 "current_supplier": None,
@@ -296,7 +312,8 @@ def api_load_d_taf_batch(
                     {
                         "message": (
                             f"[D_TAF] Batch started: {len(suppliers)} supplier(s) ASC "
-                            f"(.7z extracted to DATA_DIR/extract/<id>/, or folder) "
+                            f"(.7z extracted to DATA_DIR/extract/<id>/, or folder); "
+                            f"truncate_first={truncate_first} "
                             f"{preview!r}{suffix}"
                         )
                     }
