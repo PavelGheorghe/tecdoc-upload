@@ -133,7 +133,10 @@
         <code>varchar(n)</code>, <code>integer</code>, <code>numeric(p)</code>). Set
         <code>ROW_PARSE_MODE=delimiter</code> to use <code>FIELD_DELIMITER</code> instead. No header row.
         Data is copied into
-        <code>tecdoc_gheorghe</code>. Each step is logged in the job (<code>progress.steps</code>)
+        <code>tecdoc_gheorghe</code>.
+        Loading first deletes existing rows for that supplier (folder name = DLNr) from every table
+        that has a <code>dlnr</code> column, then imports the files.
+        Each step is logged in the job (<code>progress.steps</code>)
         and in the server process logs.
       </p>
 

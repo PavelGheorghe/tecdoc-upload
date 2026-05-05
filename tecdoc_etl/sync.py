@@ -532,6 +532,10 @@ def run_folder_load_sync(
     Load TecDoc flat files from an existing folder tree (e.g. data/0001/001.0001)
     into tecdoc_gheorghe. For fixed-width mode, uses documentation column positions CSV
     (TecDoc PDF Pos/Length) when available; otherwise schema-derived widths. No extraction step.
+
+    Before COPY, removes existing rows for this supplier: folder basename is treated as DLNr and
+    ``delete_tecdoc_rows_for_dlnr`` runs on all schema tables that have a ``dlnr`` column (same as
+    D_TAF per-supplier loads). Full-schema TRUNCATE is not used for folder loads.
     """
     def log(msg: str) -> None:
         logger.info(msg)
@@ -579,7 +583,27 @@ def run_folder_load_sync(
         )
         progress["steps"].append({"message": start_msg})
         log(start_msg)
-        progress["phase"] = "load"
+        update_job(conn, job_id, progress=progress)
+
+        supplier = folder_path.name
+        progress["phase"] = "purge"
+        purge_intro = (
+            f"Purge existing rows for supplier {supplier!r} (DLNr) in {SCHEMA} "
+            "before import …"
+        )
+        progress["steps"].append({"message": purge_intro})
+        log(purge_intro)
+        update_job(conn, job_id, progress=progress)
+
+        log(f"Purging database rows for folder supplier {supplier!r}")
+        purge_info = delete_tecdoc_rows_for_dlnr(conn, supplier, log=logger)
+        progress["purge"] = purge_info
+        purge_done = (
+            f"Purge {supplier}: {purge_info['rows_deleted_total']} row(s) removed from "
+            f"{purge_info['tables_touched']} table(s) (FK-safe retries)."
+        )
+        progress["steps"].append({"message": purge_done})
+        log(purge_done)
         update_job(conn, job_id, progress=progress)
 
         return _load_from_extract_dirs(
@@ -590,6 +614,7 @@ def run_folder_load_sync(
             progress,
             errors,
             log,
+            truncate_all=False,
         )
 
     except Exception as e:
