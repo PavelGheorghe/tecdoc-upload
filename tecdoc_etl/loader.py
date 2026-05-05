@@ -46,11 +46,18 @@ def load_file_into_table(
     file_path: Path,
     *,
     log_prefix: str = "",
+    insert_if_not_exists: bool = False,
 ) -> int:
-    """Stream-transform source lines to PostgreSQL COPY text format and COPY into table."""
+    """Stream-transform source lines to PostgreSQL COPY text format and COPY into table.
+
+    When ``insert_if_not_exists=True``, rows are COPYed into a temp table then inserted into
+    the target with ON CONFLICT DO NOTHING, skipping any row that conflicts with an existing
+    primary key or unique constraint.
+    """
     if settings.row_parse_mode == "delimiter":
         return _load_delimited(
-            conn, settings, table_name, column_names, file_path, log_prefix=log_prefix
+            conn, settings, table_name, column_names, file_path,
+            log_prefix=log_prefix, insert_if_not_exists=insert_if_not_exists,
         )
     return _load_fixed_width(
         conn,
@@ -58,6 +65,7 @@ def load_file_into_table(
         table_name,
         file_path,
         log_prefix=log_prefix,
+        insert_if_not_exists=insert_if_not_exists,
     )
 
 
@@ -69,18 +77,23 @@ def _load_delimited(
     file_path: Path,
     *,
     log_prefix: str,
+    insert_if_not_exists: bool = False,
 ) -> int:
     col_count = len(column_names)
     if col_count == 0:
         raise ValueError(f"No columns for {table_name}")
 
-    copy_stmt = sql.SQL(
-        "COPY {}.{} ({}) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t', NULL '\\N')"
-    ).format(
-        sql.Identifier(SCHEMA),
-        sql.Identifier(table_name),
-        sql.SQL(", ").join(sql.Identifier(c) for c in column_names),
-    )
+    col_sql = sql.SQL(", ").join(sql.Identifier(c) for c in column_names)
+    tmp_table = f"_tecdoc_ins_{table_name}"
+
+    if insert_if_not_exists:
+        copy_stmt = sql.SQL(
+            "COPY {} ({}) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t', NULL '\\N')"
+        ).format(sql.Identifier(tmp_table), col_sql)
+    else:
+        copy_stmt = sql.SQL(
+            "COPY {}.{} ({}) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t', NULL '\\N')"
+        ).format(sql.Identifier(SCHEMA), sql.Identifier(table_name), col_sql)
 
     delimiter = settings.field_delimiter
     encoding = settings.text_encoding
@@ -117,10 +130,36 @@ def _load_delimited(
                 dst.write(row_to_copy_line(fields, col_count, empty_as_null))
                 rows += 1
 
+        inserted_count: int | None = None
         try:
             with open(tmp_path, "r", encoding="utf-8") as f:
                 with conn.cursor() as cur:
-                    cur.copy_expert(copy_stmt, f)
+                    if insert_if_not_exists:
+                        cur.execute(
+                            sql.SQL(
+                                "CREATE TEMP TABLE IF NOT EXISTS {} AS "
+                                "SELECT {} FROM {}.{} WHERE false"
+                            ).format(
+                                sql.Identifier(tmp_table),
+                                col_sql,
+                                sql.Identifier(SCHEMA),
+                                sql.Identifier(table_name),
+                            )
+                        )
+                        cur.copy_expert(copy_stmt, f)
+                        cur.execute(
+                            sql.SQL(
+                                "INSERT INTO {}.{} ({}) "
+                                "SELECT {} FROM {} ON CONFLICT DO NOTHING"
+                            ).format(
+                                sql.Identifier(SCHEMA), sql.Identifier(table_name), col_sql,
+                                col_sql, sql.Identifier(tmp_table),
+                            )
+                        )
+                        inserted_count = cur.rowcount
+                        cur.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(tmp_table)))
+                    else:
+                        cur.copy_expert(copy_stmt, f)
             conn.commit()
         except Exception:
             conn.rollback()
@@ -138,7 +177,7 @@ def _load_delimited(
             bad_rows,
             file_path,
         )
-    return rows
+    return inserted_count if inserted_count is not None else rows
 
 
 def _load_fixed_width(
@@ -148,6 +187,7 @@ def _load_fixed_width(
     file_path: Path,
     *,
     log_prefix: str,
+    insert_if_not_exists: bool = False,
 ) -> int:
     all_meta = get_table_column_load_meta(conn, table_name)
     copy_meta, parse_sequence, widths = build_fixed_width_plan(
@@ -180,13 +220,17 @@ def _load_fixed_width(
             settings.tecdoc_column_positions_csv,
         )
 
-    copy_stmt = sql.SQL(
-        "COPY {}.{} ({}) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t', NULL '\\N')"
-    ).format(
-        sql.Identifier(SCHEMA),
-        sql.Identifier(table_name),
-        sql.SQL(", ").join(sql.Identifier(c) for c in column_names),
-    )
+    col_sql = sql.SQL(", ").join(sql.Identifier(c) for c in column_names)
+    tmp_table = f"_tecdoc_ins_{table_name}"
+
+    if insert_if_not_exists:
+        copy_stmt = sql.SQL(
+            "COPY {} ({}) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t', NULL '\\N')"
+        ).format(sql.Identifier(tmp_table), col_sql)
+    else:
+        copy_stmt = sql.SQL(
+            "COPY {}.{} ({}) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t', NULL '\\N')"
+        ).format(sql.Identifier(SCHEMA), sql.Identifier(table_name), col_sql)
 
     encoding = settings.text_encoding
     empty_as_null = settings.empty_as_null
@@ -275,10 +319,36 @@ def _load_fixed_width(
                 dst.write(row_to_copy_line(fields, col_count, empty_as_null))
                 rows += 1
 
+        inserted_count: int | None = None
         try:
             with open(tmp_path, "r", encoding="utf-8") as f:
                 with conn.cursor() as cur:
-                    cur.copy_expert(copy_stmt, f)
+                    if insert_if_not_exists:
+                        cur.execute(
+                            sql.SQL(
+                                "CREATE TEMP TABLE IF NOT EXISTS {} AS "
+                                "SELECT {} FROM {}.{} WHERE false"
+                            ).format(
+                                sql.Identifier(tmp_table),
+                                col_sql,
+                                sql.Identifier(SCHEMA),
+                                sql.Identifier(table_name),
+                            )
+                        )
+                        cur.copy_expert(copy_stmt, f)
+                        cur.execute(
+                            sql.SQL(
+                                "INSERT INTO {}.{} ({}) "
+                                "SELECT {} FROM {} ON CONFLICT DO NOTHING"
+                            ).format(
+                                sql.Identifier(SCHEMA), sql.Identifier(table_name), col_sql,
+                                col_sql, sql.Identifier(tmp_table),
+                            )
+                        )
+                        inserted_count = cur.rowcount
+                        cur.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(tmp_table)))
+                    else:
+                        cur.copy_expert(copy_stmt, f)
             conn.commit()
         except Exception:
             conn.rollback()
@@ -303,7 +373,7 @@ def _load_fixed_width(
             dup_t040,
             file_path,
         )
-    return rows
+    return inserted_count if inserted_count is not None else rows
 
 
 def get_copy_column_names(

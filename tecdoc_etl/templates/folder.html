@@ -135,7 +135,9 @@
         Data is copied into
         <code>tecdoc_gheorghe</code>.
         Loading first deletes existing rows for that supplier (folder name = DLNr) from every table
-        that has a <code>dlnr</code> column, then imports the files.
+        that has a <code>dlnr</code> column, then imports the files. Check
+        <strong>Skip purge</strong> to skip the delete and instead insert only into tables that
+        have no existing rows for this supplier.
         Each step is logged in the job (<code>progress.steps</code>)
         and in the server process logs.
       </p>
@@ -145,6 +147,10 @@
           <label for="folder-select"><strong>Folder</strong></label>
           <select id="folder-select" aria-label="Data subfolder"></select>
           <button type="button" id="btn-load">Load into database</button>
+          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-weight:normal">
+            <input type="checkbox" id="skip-purge-check">
+            Skip purge (insert only if not exists)
+          </label>
           <span id="sync-pill" class="pill warn" style="display: none">Job running</span>
         </div>
         <p class="muted" style="margin: 0">
@@ -241,10 +247,11 @@
           alert("No folder selected");
           return;
         }
+        const skipPurge = document.getElementById("skip-purge-check").checked;
         const r = await fetch("/api/jobs/load-folder", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folder }),
+          body: JSON.stringify({ folder, skip_purge: skipPurge }),
         });
         if (r.status === 409) {
           alert("Another job is already running");

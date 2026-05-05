@@ -357,6 +357,7 @@ def api_load_folder(
             status_code=400,
             detail='Body must include string "folder" (e.g. "0001" for data/0001).',
         )
+    skip_purge = bool(payload.get("skip_purge", False))
     if sync_busy():
         raise HTTPException(status_code=409, detail="A sync job is already running.")
     try:
@@ -375,12 +376,12 @@ def api_load_folder(
 
     def work() -> None:
         try:
-            run_folder_load_task(settings, job_id=jid, folder_path=folder_path)
+            run_folder_load_task(settings, job_id=jid, folder_path=folder_path, skip_purge=skip_purge)
         except Exception:
             logger.exception("Background folder load failed")
 
     background_tasks.add_task(work)
-    return {"job_id": jid, "status": "started", "folder": folder_path.name}
+    return {"job_id": jid, "status": "started", "folder": folder_path.name, "skip_purge": skip_purge}
 
 
 @app.get("/folder", response_class=HTMLResponse)

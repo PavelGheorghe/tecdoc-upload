@@ -141,6 +141,7 @@ def _load_from_extract_dirs(
     *,
     truncate_all: bool | None = None,
     finalize_job: bool = True,
+    insert_new_rows_only: bool = False,
 ) -> dict[str, Any]:
     """
     Merge discovery from extract roots, optional truncate, COPY into tables.
@@ -269,6 +270,7 @@ def _load_from_extract_dirs(
                     cols,
                     fp,
                     log_prefix=f"[{table}] ",
+                    insert_if_not_exists=insert_new_rows_only,
                 )
                 table_rows += n
                 step(
@@ -527,15 +529,16 @@ def run_folder_load_sync(
     *,
     job_id: int | None = None,
     log_cb: Callable[[str], None] | None = None,
+    skip_purge: bool = False,
 ) -> dict[str, Any]:
     """
     Load TecDoc flat files from an existing folder tree (e.g. data/0001/001.0001)
     into tecdoc_gheorghe. For fixed-width mode, uses documentation column positions CSV
     (TecDoc PDF Pos/Length) when available; otherwise schema-derived widths. No extraction step.
 
-    Before COPY, removes existing rows for this supplier: folder basename is treated as DLNr and
-    ``delete_tecdoc_rows_for_dlnr`` runs on all schema tables that have a ``dlnr`` column (same as
-    D_TAF per-supplier loads). Full-schema TRUNCATE is not used for folder loads.
+    By default, removes existing rows for this supplier before COPY (folder basename treated as
+    DLNr). When ``skip_purge=True``, the delete is skipped and each table is only loaded if it has
+    no existing rows for this supplier.
     """
     def log(msg: str) -> None:
         logger.info(msg)
@@ -586,25 +589,35 @@ def run_folder_load_sync(
         update_job(conn, job_id, progress=progress)
 
         supplier = folder_path.name
-        progress["phase"] = "purge"
-        purge_intro = (
-            f"Purge existing rows for supplier {supplier!r} (DLNr) in {SCHEMA} "
-            "before import …"
-        )
-        progress["steps"].append({"message": purge_intro})
-        log(purge_intro)
-        update_job(conn, job_id, progress=progress)
+        if skip_purge:
+            progress["phase"] = "load"
+            no_purge_msg = (
+                f"No-purge mode: skipping delete for supplier {supplier!r}; "
+                "tables that already have rows for this supplier will be skipped."
+            )
+            progress["steps"].append({"message": no_purge_msg})
+            log(no_purge_msg)
+            update_job(conn, job_id, progress=progress)
+        else:
+            progress["phase"] = "purge"
+            purge_intro = (
+                f"Purge existing rows for supplier {supplier!r} (DLNr) in {SCHEMA} "
+                "before import …"
+            )
+            progress["steps"].append({"message": purge_intro})
+            log(purge_intro)
+            update_job(conn, job_id, progress=progress)
 
-        log(f"Purging database rows for folder supplier {supplier!r}")
-        purge_info = delete_tecdoc_rows_for_dlnr(conn, supplier, log=logger)
-        progress["purge"] = purge_info
-        purge_done = (
-            f"Purge {supplier}: {purge_info['rows_deleted_total']} row(s) removed from "
-            f"{purge_info['tables_touched']} table(s) (FK-safe retries)."
-        )
-        progress["steps"].append({"message": purge_done})
-        log(purge_done)
-        update_job(conn, job_id, progress=progress)
+            log(f"Purging database rows for folder supplier {supplier!r}")
+            purge_info = delete_tecdoc_rows_for_dlnr(conn, supplier, log=logger)
+            progress["purge"] = purge_info
+            purge_done = (
+                f"Purge {supplier}: {purge_info['rows_deleted_total']} row(s) removed from "
+                f"{purge_info['tables_touched']} table(s) (FK-safe retries)."
+            )
+            progress["steps"].append({"message": purge_done})
+            log(purge_done)
+            update_job(conn, job_id, progress=progress)
 
         return _load_from_extract_dirs(
             conn,
@@ -615,6 +628,7 @@ def run_folder_load_sync(
             errors,
             log,
             truncate_all=False,
+            insert_new_rows_only=skip_purge,
         )
 
     except Exception as e:
@@ -635,11 +649,11 @@ def run_folder_load_sync(
 
 
 def run_folder_load_task(
-    settings: Settings, job_id: int, folder_path: Path
+    settings: Settings, job_id: int, folder_path: Path, *, skip_purge: bool = False
 ) -> None:
     _set_running(True)
     try:
-        run_folder_load_sync(settings, folder_path, job_id=job_id)
+        run_folder_load_sync(settings, folder_path, job_id=job_id, skip_purge=skip_purge)
     finally:
         _set_running(False)
 
