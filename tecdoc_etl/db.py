@@ -151,6 +151,30 @@ def list_tables_with_dlnr_column(
         return [(r[0], (r[1] or "").lower()) for r in cur.fetchall()]
 
 
+def get_primary_key_columns(
+    conn: psycopg2.extensions.connection,
+    table_name: str,
+) -> list[str]:
+    """Return PK column names in ordinal order for a table in SCHEMA, or [] if no PK."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON kcu.constraint_name = tc.constraint_name
+             AND kcu.table_schema    = tc.table_schema
+             AND kcu.table_name      = tc.table_name
+            WHERE tc.table_schema    = %s
+              AND tc.table_name      = %s
+              AND tc.constraint_type = 'PRIMARY KEY'
+            ORDER BY kcu.ordinal_position
+            """,
+            (SCHEMA, table_name),
+        )
+        return [r[0] for r in cur.fetchall()]
+
+
 def normalize_supplier_folder_to_dlnr_match(folder_name: str) -> tuple[str, int | None]:
     """
     Map a D_TAF subdirectory name to values for SQL deletes.

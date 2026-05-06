@@ -7,7 +7,7 @@ import psycopg2.extensions
 from psycopg2 import sql
 
 from tecdoc_etl.config import SCHEMA, Settings
-from tecdoc_etl.db import get_table_column_load_meta
+from tecdoc_etl.db import get_primary_key_columns, get_table_column_load_meta
 from tecdoc_etl.column_positions import slices_for_table
 from tecdoc_etl.line_layout import (
     T030_RECORD_MIN_LEN,
@@ -18,6 +18,42 @@ from tecdoc_etl.line_layout import (
 from tecdoc_etl.parser import parse_delimited_row, row_to_copy_line
 
 logger = logging.getLogger(__name__)
+
+
+def _not_exists_insert_sql(
+    conn: psycopg2.extensions.connection,
+    table_name: str,
+    col_sql: sql.Composable,
+    tmp_table: str,
+    mapped_cols: list[str],
+) -> sql.Composable:
+    """
+    Build INSERT ... WHERE NOT EXISTS SQL.
+
+    Check cols: PK columns when the table has a PK (prevents inserting a row whose key already
+    exists regardless of other field values). Falls back to all ``mapped_cols`` for tables with
+    no PK (ensures no exact duplicate row on the loaded fields).
+    """
+    pk_cols = get_primary_key_columns(conn, table_name)
+    check_cols = pk_cols if pk_cols else mapped_cols
+    where_parts = sql.SQL(" AND ").join(
+        sql.SQL("{}.{} = {}.{}").format(
+            sql.Identifier("_m"), sql.Identifier(c),
+            sql.Identifier("_t"), sql.Identifier(c),
+        )
+        for c in check_cols
+    )
+    return sql.SQL(
+        "INSERT INTO {schema}.{tbl} ({cols}) "
+        "SELECT {cols} FROM {tmp} _t "
+        "WHERE NOT EXISTS (SELECT 1 FROM {schema}.{tbl} _m WHERE {where})"
+    ).format(
+        schema=sql.Identifier(SCHEMA),
+        tbl=sql.Identifier(table_name),
+        cols=col_sql,
+        tmp=sql.Identifier(tmp_table),
+        where=where_parts,
+    )
 
 
 def _log_extracted_line(
@@ -147,15 +183,7 @@ def _load_delimited(
                             )
                         )
                         cur.copy_expert(copy_stmt, f)
-                        cur.execute(
-                            sql.SQL(
-                                "INSERT INTO {}.{} ({}) "
-                                "SELECT {} FROM {} ON CONFLICT DO NOTHING"
-                            ).format(
-                                sql.Identifier(SCHEMA), sql.Identifier(table_name), col_sql,
-                                col_sql, sql.Identifier(tmp_table),
-                            )
-                        )
+                        cur.execute(_not_exists_insert_sql(conn, table_name, col_sql, tmp_table, column_names))
                         inserted_count = cur.rowcount
                         cur.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(tmp_table)))
                     else:
@@ -223,7 +251,13 @@ def _load_fixed_width(
     col_sql = sql.SQL(", ").join(sql.Identifier(c) for c in column_names)
     tmp_table = f"_tecdoc_ins_{table_name}"
 
-    if insert_if_not_exists:
+    # Only use the temp-table + ON CONFLICT path when CSV column positions are active for this
+    # table — those are the directly-mapped columns from tecdoc_column_string_positions.csv.
+    # Schema-derived widths may include DB-only columns (e.g. lflag) that have no position
+    # in the spec, so we fall back to a plain COPY in that case.
+    use_insert_if_not_exists = insert_if_not_exists and csv_slices is not None
+
+    if use_insert_if_not_exists:
         copy_stmt = sql.SQL(
             "COPY {} ({}) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t', NULL '\\N')"
         ).format(sql.Identifier(tmp_table), col_sql)
@@ -323,7 +357,7 @@ def _load_fixed_width(
         try:
             with open(tmp_path, "r", encoding="utf-8") as f:
                 with conn.cursor() as cur:
-                    if insert_if_not_exists:
+                    if use_insert_if_not_exists:
                         cur.execute(
                             sql.SQL(
                                 "CREATE TEMP TABLE IF NOT EXISTS {} AS "
@@ -336,15 +370,10 @@ def _load_fixed_width(
                             )
                         )
                         cur.copy_expert(copy_stmt, f)
-                        cur.execute(
-                            sql.SQL(
-                                "INSERT INTO {}.{} ({}) "
-                                "SELECT {} FROM {} ON CONFLICT DO NOTHING"
-                            ).format(
-                                sql.Identifier(SCHEMA), sql.Identifier(table_name), col_sql,
-                                col_sql, sql.Identifier(tmp_table),
-                            )
-                        )
+                        # mapped_cols: CSV-positioned columns only — excludes unmapped
+                        # columns (e.g. artnr_raw) that are always NULL after insert.
+                        mapped_cols = [c for c in column_names if c in csv_slices]
+                        cur.execute(_not_exists_insert_sql(conn, table_name, col_sql, tmp_table, mapped_cols))
                         inserted_count = cur.rowcount
                         cur.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(tmp_table)))
                     else:
