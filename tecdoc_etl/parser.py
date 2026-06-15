@@ -43,9 +43,21 @@ def escape_copy_text_field(value: str | None, empty_as_null: bool) -> str:
 
 
 def row_to_copy_line(
-    fields: list[str], col_count: int, empty_as_null: bool
+    fields: list[str],
+    col_count: int,
+    empty_as_null: bool,
+    never_null_indices: frozenset[int] | None = None,
 ) -> str:
+    """Build one COPY text line. Columns in ``never_null_indices`` keep '' (empty string) instead
+    of being converted to NULL, even when ``empty_as_null`` is set (e.g. NOT NULL t042.lkz)."""
     while len(fields) < col_count:
         fields.append("")
     fields = fields[:col_count]
-    return "\t".join(escape_copy_text_field(f, empty_as_null) for f in fields) + "\n"
+    never = never_null_indices or frozenset()
+    return (
+        "\t".join(
+            escape_copy_text_field(f, empty_as_null and i not in never)
+            for i, f in enumerate(fields)
+        )
+        + "\n"
+    )

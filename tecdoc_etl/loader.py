@@ -12,6 +12,7 @@ from tecdoc_etl.column_positions import slices_for_table
 from tecdoc_etl.line_layout import (
     T030_RECORD_MIN_LEN,
     build_fixed_width_plan,
+    force_empty_string_columns,
     line_to_copy_fields_csv_layout,
     line_to_copy_fields_fixed,
 )
@@ -134,6 +135,10 @@ def _load_delimited(
     delimiter = settings.field_delimiter
     encoding = settings.text_encoding
     empty_as_null = settings.empty_as_null
+    force_empty = force_empty_string_columns(table_name)
+    never_null_indices = frozenset(
+        i for i, c in enumerate(column_names) if c in force_empty
+    )
     rows = 0
     bad_rows = 0
 
@@ -163,7 +168,11 @@ def _load_delimited(
                             line[:200],
                         )
                     continue
-                dst.write(row_to_copy_line(fields, col_count, empty_as_null))
+                dst.write(
+                    row_to_copy_line(
+                        fields, col_count, empty_as_null, never_null_indices
+                    )
+                )
                 rows += 1
 
         inserted_count: int | None = None
@@ -268,6 +277,10 @@ def _load_fixed_width(
 
     encoding = settings.text_encoding
     empty_as_null = settings.empty_as_null
+    force_empty = force_empty_string_columns(table_name)
+    never_null_indices = frozenset(
+        i for i, c in enumerate(column_names) if c in force_empty
+    )
     rows = 0
     bad_rows = 0
     expected_len = sum(widths)
@@ -350,7 +363,11 @@ def _load_fixed_width(
                             )
                         continue
                     t040_seen_pk.add(pk)
-                dst.write(row_to_copy_line(fields, col_count, empty_as_null))
+                dst.write(
+                    row_to_copy_line(
+                        fields, col_count, empty_as_null, never_null_indices
+                    )
+                )
                 rows += 1
 
         inserted_count: int | None = None

@@ -63,6 +63,19 @@ EXTRA_OMIT_FROM_RAW_LINE: dict[str, frozenset[str]] = {
     "t030": frozenset({"reserviert"}),
 }
 
+# Columns whose blank slice must be stored as '' (empty string) — never the raw space padding and
+# never NULL. These are NOT NULL / primary-key columns where an empty string is the desired
+# representation of "no value" (e.g. t042 ``lkz`` CountryCode is part of the PK). The loader writes
+# these to COPY with per-column NULL conversion disabled so '' survives EMPTY_AS_NULL=1.
+FORCE_EMPTY_STRING_WHEN_BLANK: dict[str, frozenset[str]] = {
+    "t042": frozenset({"lkz"}),
+}
+
+
+def force_empty_string_columns(table_name: str) -> frozenset[str]:
+    """Column names for ``table_name`` whose blank slices become '' (not spaces, not NULL)."""
+    return FORCE_EMPTY_STRING_WHEN_BLANK.get(table_name, frozenset())
+
 _T030_PREFIX_LEN = 9 + 3 + 4 + 3  # supplier: beznr, sprachnr, dlnr, sa
 _T030_SUFFIX_LEN = 1  # lflag
 T030_RECORD_MIN_LEN = _T030_PREFIX_LEN + _T030_SUFFIX_LEN
@@ -325,6 +338,10 @@ def line_to_copy_fields_csv_layout(
         raw_by_name[name] = line[start:end]
 
     parsed = {k: _trim_csv_slice_value(v) for k, v in raw_by_name.items()}
+    # Force-empty columns: a blank slice becomes '' (not raw spaces); the loader keeps it as ''.
+    for _fe in force_empty_string_columns(table_name):
+        if _fe in raw_by_name:
+            parsed[_fe] = raw_by_name[_fe].strip()
     out: list[str] = []
     for m in copy_columns:
         if (
@@ -595,6 +612,10 @@ def line_to_copy_fields_fixed(
     # Match CSV path: whitespace-only slices stay as raw padding (e.g. t207 ``lkz`` = three spaces,
     # NOT NULL) instead of ``strip()`` → "" → NULL with EMPTY_AS_NULL.
     parsed = {name: _trim_csv_slice_value(chunk) for name, chunk in raw_by_name.items()}
+    # Force-empty columns: a blank slice becomes '' (not raw spaces); the loader keeps it as ''.
+    for _fe in force_empty_string_columns(table_name):
+        if _fe in raw_by_name:
+            parsed[_fe] = raw_by_name[_fe].strip()
     out: list[str] = []
 
     for m in copy_columns:

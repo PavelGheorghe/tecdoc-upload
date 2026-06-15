@@ -74,7 +74,7 @@ tecdoc_gheorghe,t040,18,web,varchar(60),040,Data Supplier Main Address,448,,,,,,
 tecdoc_gheorghe,t040,19,lflag,varchar(1),040,Data Supplier Main Address,448,19,447,448,447-447,448,448,448-448,1,N,DeleteFlag,Lösch -Flag,trim(substring($1::text FROM 448 FOR 1)),matched_pdf_field
 tecdoc_gheorghe,t042,1,dlnr,varchar(4),042,Data Supplier Logos,22,1,0,4,0-3,1,4,1-4,4,N,BrandNo,DLNr,trim(substring($1::text FROM 1 FOR 4)),matched_pdf_field
 tecdoc_gheorghe,t042,2,sa,varchar(3),042,Data Supplier Logos,22,2,4,7,4-6,5,7,5-7,3,N,TableNo,SA,trim(substring($1::text FROM 5 FOR 3)),matched_pdf_field
-tecdoc_gheorghe,t042,3,lkz,varchar(3),042,Data Supplier Logos,22,3,7,10,7-9,8,10,8-10,3,C,CountryCode,LKZ,trim(substring($1::text FROM 8 FOR 3)),matched_pdf_field
+tecdoc_gheorghe,t042,3,lkz,varchar(3),042,Data Supplier Logos,22,3,7,10,7-9,8,10,8-10,3,C,CountryCode,LKZ,trim(substring($1::text FROM 8 FOR 3)),matched_pdf_field_empty_lkz_blank_string
 tecdoc_gheorghe,t042,4,bildnr,varchar(9),042,Data Supplier Logos,22,4,10,19,10-18,11,19,11-19,9,N,DocNo,BildNr,trim(substring($1::text FROM 11 FOR 9)),matched_pdf_field
 tecdoc_gheorghe,t042,5,dokumentenart,varchar(2),042,Data Supplier Logos,22,5,19,21,19-20,20,21,20-21,2,N,DocType,Dokumentenart,trim(substring($1::text FROM 20 FOR 2)),matched_pdf_field
 tecdoc_gheorghe,t042,6,lflag,varchar(1),042,Data Supplier Logos,22,6,21,22,21-21,22,22,22-22,1,N,DeleteFlag,Lösch -Flag,trim(substring($1::text FROM 22 FOR 1)),matched_pdf_field
@@ -376,20 +376,20 @@ tecdoc_gheorghe,t215,5,lkz,varchar(3),215,Parts Lists Country Restrictions,37,5,
 tecdoc_gheorghe,t215,6,exclude,varchar,215,Parts Lists Country Restrictions,37,6,35,36,35-35,36,36,36-36,1,N,Exclude,Exclude,trim(substring($1::text FROM 36 FOR 1)),matched_pdf_field
 tecdoc_gheorghe,t215,7,losch_flag,varchar(1),215,Parts Lists Country Restrictions,37,7,36,37,36-36,37,37,37-37,1,N,DeleteFlag,Lösch -Flag,trim(substring($1::text FROM 37 FOR 1)),matched_pdf_field
 tecdoc_gheorghe,t231,1,bildnr,varchar(9),231,Graphics / Documents,400,4,29,38,29-37,30,38,30-38,9,N,DocNo,BildNr,trim(substring($1::text FROM 30 FOR 9)),matched_pdf_field
-tecdoc_gheorghe,t231,2,dokumentenart,varchar(2),231,Graphics / Documents,400,5,38,40,38-39,39,40,39-40,2,N,DocType,Dokumentenart,trim(substring($1::text FROM 39 FOR 2)),matched_pdf_field
-tecdoc_gheorghe,t231,3,sprachnr,varchar(3),231,Graphics / Documents,400,6,40,43,40-42,41,43,41-43,3,N,LangNo,LangNo,trim(substring($1::text FROM 41 FOR 3)),matched_pdf_field
+tecdoc_gheorghe,t231,2,dokumentenart,varchar(2),231,Graphics / Documents,400,12,88,90,88-89,89,90,89-90,2,N,DocType,Dokumentenart,trim(substring($1::text FROM 89 FOR 2)),matched_pdf_field
+tecdoc_gheorghe,t231,3,sprachnr,varchar(3),231,Graphics / Documents,400,5,38,41,38-40,39,41,39-41,3,N,LangNo,LangNo,trim(substring($1::text FROM 39 FOR 3)),matched_pdf_field
 tecdoc_gheorghe,t231,4,dlnr,varchar(4),231,Graphics / Documents,400,2,22,26,22-25,23,26,23-26,4,N,BrandNo,DLNr,trim(substring($1::text FROM 23 FOR 4)),matched_pdf_field
 tecdoc_gheorghe,t231,5,reserviert,varchar(22),231,Graphics / Documents,400,1,0,22,0-21,1,22,1-22,22,C,Reserved,Reserviert,trim(substring($1::text FROM 1 FOR 22)),matched_pdf_field
 tecdoc_gheorghe,t231,6,sa,varchar(3),231,Graphics / Documents,400,3,26,29,26-28,27,29,27-29,3,N,TableNo,SA,trim(substring($1::text FROM 27 FOR 3)),matched_pdf_field
-tecdoc_gheorghe,t231,7,bildname,varchar(30),231,Graphics / Documents,400,7,43,73,43-72,44,73,44-73,30,U,DocName,Bildname,trim(substring($1::text FROM 44 FOR 30)),matched_pdf_field
-tecdoc_gheorghe,t231,8,bildtype,varchar(3),231,Graphics / Documents,400,8,73,76,73-75,74,76,74-76,3,N,DocContentType,BildType,trim(substring($1::text FROM 74 FOR 3)),matched_pdf_field
-tecdoc_gheorghe,t231,9,beznorm,varchar(3),231,Graphics / Documents,400,9,76,79,76-78,77,79,77-79,3,N,DocTermNorm,BezNorm,trim(substring($1::text FROM 77 FOR 3)),matched_pdf_field
-tecdoc_gheorghe,t231,10,breit,varchar(4),231,Graphics / Documents,400,10,79,83,79-82,80,83,80-83,4,N,Width,Breit,trim(substring($1::text FROM 80 FOR 4)),matched_pdf_field
-tecdoc_gheorghe,t231,11,hoch,varchar(4),231,Graphics / Documents,400,11,83,87,83-86,84,87,84-87,4,N,Height,Hoch,trim(substring($1::text FROM 84 FOR 4)),matched_pdf_field
-tecdoc_gheorghe,t231,12,farben,varchar(3),231,Graphics / Documents,400,12,87,90,87-89,88,90,88-90,3,N,Colors,Farben,trim(substring($1::text FROM 88 FOR 3)),matched_pdf_field
+tecdoc_gheorghe,t231,7,bildname,varchar(30),231,Graphics / Documents,400,6,41,71,41-70,42,71,42-71,30,U,DocName,Bildname,trim(substring($1::text FROM 42 FOR 30)),matched_pdf_field
+tecdoc_gheorghe,t231,8,bildtype,varchar(3),231,Graphics / Documents,400,7,71,74,71-73,72,74,72-74,3,N,DocContentType,BildType,trim(substring($1::text FROM 72 FOR 3)),matched_pdf_field
+tecdoc_gheorghe,t231,9,beznorm,varchar(3),231,Graphics / Documents,400,8,74,77,74-76,75,77,75-77,3,N,DocTermNorm,BezNorm,trim(substring($1::text FROM 75 FOR 3)),matched_pdf_field
+tecdoc_gheorghe,t231,10,breit,varchar(4),231,Graphics / Documents,400,9,77,81,77-80,78,81,78-81,4,N,Width,Breit,trim(substring($1::text FROM 78 FOR 4)),matched_pdf_field
+tecdoc_gheorghe,t231,11,hoch,varchar(4),231,Graphics / Documents,400,10,81,85,81-84,82,85,82-85,4,N,Height,Hoch,trim(substring($1::text FROM 82 FOR 4)),matched_pdf_field
+tecdoc_gheorghe,t231,12,farben,varchar(3),231,Graphics / Documents,400,11,85,88,85-87,86,88,86-88,3,N,Colors,Farben,trim(substring($1::text FROM 86 FOR 3)),matched_pdf_field
 tecdoc_gheorghe,t231,13,beznr,varchar(9),231,Graphics / Documents,400,13,90,99,90-98,91,99,91-99,9,N,TermNo,BezNr,trim(substring($1::text FROM 91 FOR 9)),matched_pdf_field
 tecdoc_gheorghe,t231,14,lflag,varchar(1),231,Graphics / Documents,400,14,99,100,99-99,100,100,100-100,1,N,DeleteFlag,Lösch -Flag,trim(substring($1::text FROM 100 FOR 1)),matched_pdf_field
-tecdoc_gheorghe,t231,15,url,varchar(255),231,Graphics / Documents,400,,,,,,,,,,,,,ddl_column_not_in_standard_pdf_field_list
+tecdoc_gheorghe,t231,15,url,varchar(255),231,Graphics / Documents,400,15,100,400,100-399,101,400,101-400,300,C,URL,URL,trim(substring($1::text FROM 101 FOR 300)),matched_pdf_field_pdf_len300_exceeds_ddl_varchar255
 tecdoc_gheorghe,t232,1,artnr_dlnr_sortnr,varchar(29),232,Allocation of Graphics to Article Numbers,47,,,,,,,,,,,,,ddl_column_not_in_standard_pdf_field_list
 tecdoc_gheorghe,t232,2,artnr,varchar(22),232,Allocation of Graphics to Article Numbers,47,1,0,22,0-21,1,22,1-22,22,U,ArtNo,ArtNr,trim(substring($1::text FROM 1 FOR 22)),matched_pdf_field
 tecdoc_gheorghe,t232,3,dlnr,varchar(4),232,Allocation of Graphics to Article Numbers,47,2,22,26,22-25,23,26,23-26,4,N,BrandNo,DLNr,trim(substring($1::text FROM 23 FOR 4)),matched_pdf_field
